@@ -26,10 +26,16 @@ def fetchfood(ingredients: list[str]):
     # Sends the request to the food API
     fullURL = f"{url}?type=public&q={ingredients}{excluded}&{appKey.credentials}"
     response: Response = fetch("GET", fullURL)
-    hits: dict = json.loads(response.content)["hits"][0]
-    return {
-        "name": hits["recipe"]["label"],
-        "image": hits["recipe"]["images"]["SMALL"]["url"],
-        "ingredients": hits["recipe"]["ingredientLines"],
-        "source": hits["recipe"]["url"],
-    }
+    hits: list[dict] = json.loads(response.content)["hits"]
+    
+    recipes :list[dict] = []
+    for hit in hits:
+        recipes.append(
+            {
+                "name": hit["recipe"]["label"],
+                "image": hit["recipe"]["images"]["SMALL"]["url"],
+                "ingredients": hit["recipe"]["ingredientLines"],
+                "source": hit["recipe"]["url"],
+            })
+
+    return {"results":recipes}
