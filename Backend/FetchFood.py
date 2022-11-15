@@ -26,6 +26,11 @@ def fetchfood(ingredients: list[str]):
     # Sends the request to the food API
     fullURL = f"{url}?type=public&q={ingredients}{excluded}&{appKey.credentials}"
     response: Response = fetch("GET", fullURL)
+    results = serializeRecipeResults(response)
+
+    return results
+
+def serializeRecipeResults(response: Response):
     hits: list[dict] = json.loads(response.content)["hits"]
     addRecipesLink: str = json.loads(response.content)["_links"]["next"]["href"]
 

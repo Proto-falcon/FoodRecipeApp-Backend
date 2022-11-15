@@ -1,6 +1,8 @@
 from django.http import HttpRequest, JsonResponse
 from Backend import FetchFood
 from cryptography.fernet import Fernet
+from requests import request as fetch, Response
+
 
 key = Fernet.generate_key()
 fernet = Fernet(key)
@@ -11,13 +13,17 @@ def index(request: HttpRequest):
     ingredients = request.META['QUERY_STRING'][12:].split("%20")
 
     if len(ingredients) > 0:
-        context = FetchFood.fetchfood(ingredients)
-        context["addRecipesLink"] = fernet.encrypt(context["addRecipesLink"].encode())
-        return JsonResponse(context)
+        results = FetchFood.fetchfood(ingredients)
+        results["addRecipesLink"] = fernet.encrypt(results["addRecipesLink"].encode()).decode()
+        return JsonResponse(results)
     else:
         response = JsonResponse({})
         response.status_code = 400
         return response
 
-def additionalRecipes(request: HttpRequest):
-    return JsonResponse({})
+def addRecipes(request: HttpRequest):
+    url = fernet.decrypt(request.META['QUERY_STRING'][9:].encode())
+    response: Response = fetch("GET", url)
+    results = FetchFood.serializeRecipeResults(response)
+    results["addRecipesLink"] = fernet.encrypt(results["addRecipesLink"].encode()).decode()
+    return JsonResponse(results)
