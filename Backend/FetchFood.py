@@ -27,7 +27,8 @@ def fetchfood(ingredients: list[str]):
     fullURL = f"{url}?type=public&q={ingredients}{excluded}&{appKey.credentials}"
     response: Response = fetch("GET", fullURL)
     hits: list[dict] = json.loads(response.content)["hits"]
-    
+    addRecipesLink: str = json.loads(response.content)["_links"]["next"]["href"]
+
     recipes :list[dict] = []
     for hit in hits:
         recipes.append(
@@ -38,4 +39,4 @@ def fetchfood(ingredients: list[str]):
                 "source": hit["recipe"]["url"],
             })
 
-    return {"results":recipes}
+    return { "results":recipes, "addRecipesLink": addRecipesLink }
