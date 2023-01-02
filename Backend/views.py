@@ -11,19 +11,25 @@ fernet = Fernet(key)
 def index(request: HttpRequest):
     ingredients = []
     ingredients = request.META['QUERY_STRING'][12:].split("%20")
-
+    
     if len(ingredients) > 0:
         results = FetchFood.fetchfood(ingredients)
         results["addRecipesLink"] = fernet.encrypt(results["addRecipesLink"].encode()).decode()
         return JsonResponse(results)
     else:
-        response = JsonResponse({})
+        response = JsonResponse({"message": "No ingredients given!"})
         response.status_code = 400
         return response
 
+
 def addRecipes(request: HttpRequest):
-    url = fernet.decrypt(request.META['QUERY_STRING'][9:].encode())
-    response: Response = fetch("GET", url)
-    results = FetchFood.serializeRecipeResults(response)
-    results["addRecipesLink"] = fernet.encrypt(results["addRecipesLink"].encode()).decode()
-    return JsonResponse(results)
+    if len(request.META['QUERY_STRING'][9:]) > 0:
+        url = fernet.decrypt(request.META['QUERY_STRING'][9:].encode())
+        response: Response = fetch("GET", url)
+        results = FetchFood.serializeRecipeResults(response)
+        results["addRecipesLink"] = fernet.encrypt(results["addRecipesLink"].encode()).decode()
+        return JsonResponse(results)
+    response = JsonResponse({"Valid URL": False})
+    response.status_code = 400
+    return response
+
