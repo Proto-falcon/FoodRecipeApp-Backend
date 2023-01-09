@@ -9,6 +9,9 @@ fernet = Fernet(key)
 
 # Create your views here.
 def index(request: HttpRequest):
+    """
+    Gives a list of recipes with recipe link via search options
+    """
     ingredients = []
     ingredients = request.META['QUERY_STRING'][12:].split("%20")
     
@@ -23,6 +26,9 @@ def index(request: HttpRequest):
 
 
 def addRecipes(request: HttpRequest):
+    """
+    Gives a list of recipes via a recipe link
+    """
     if len(request.META['QUERY_STRING'][9:]) > 0:
         url = fernet.decrypt(request.META['QUERY_STRING'][9:].encode())
         response: Response = fetch("GET", url)

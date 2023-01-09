@@ -4,7 +4,10 @@ from requests import request as fetch, Response
 
 
 def fetchfood(ingredients: list[str]):
-
+    """
+    Fetches food recipes using edaman web api then returns them
+    as a dictionary with an array of recipe reults and link to load more recipes
+    """
     url: str = "https://api.edamam.com/api/recipes/v2"  # API REST Endpoint
 
     without: list[str] = []
@@ -31,6 +34,10 @@ def fetchfood(ingredients: list[str]):
     return results
 
 def serializeRecipeResults(response: Response):
+    """
+    Converts the recipe result from edaman web api to a dictionary
+    that contains a link to more recipes and an array of recipe objects.
+    """
     hits: list[dict] = json.loads(response.content)["hits"]
     addRecipesLink: str = json.loads(response.content)["_links"]["next"]["href"]
 
