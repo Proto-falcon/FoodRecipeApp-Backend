@@ -1,8 +1,7 @@
 from django.http import HttpRequest, JsonResponse
-from Backend import FetchFood
+from Backend import FetchFood, utilities
 from cryptography.fernet import Fernet
 from requests import request as fetch, Response
-
 
 key = Fernet.generate_key()
 fernet = Fernet(key)
@@ -10,14 +9,35 @@ fernet = Fernet(key)
 # Create your views here.
 def index(request: HttpRequest):
     """
-    Gives a list of recipes with recipe link via search options
+    Gives a list of recipes with recipe link via search options.
     """
-    ingredients = []
-    ingredients = request.META['QUERY_STRING'][12:].split("%20")
+    if not utilities.KeysViewContains(
+        "ingredients", request.GET.keys()
+    ) and not utilities.KeysViewNotContains("ingredients", request.GET.keys()):
+        response = JsonResponse({"message": "No ingredients given!"})
+        response.status_code = 400
+        return response
+
+    ingredients = ""
+    options: dict[str] = {}
+    if utilities.KeysViewContains("ingredients", request.GET.keys()):
+        ingredients = request.GET["ingredients"]
+    if utilities.KeysViewNotContains("ingredients", request.GET.keys()):
+        for option in request.GET.keys():
+            if option != "ingredients":
+                options[option] = request.GET.getlist(option)
     
-    if len(ingredients) > 0:
-        results = FetchFood.fetchfood(ingredients)
-        results["addRecipesLink"] = fernet.encrypt(results["addRecipesLink"].encode()).decode()
+    if len(ingredients) > 0 or len(options):
+        results = FetchFood.fetchfood(ingredients, options)
+        try:
+            if results["addRecipesLink"] is not None:
+                results["addRecipesLink"] = fernet.encrypt(
+                    results["addRecipesLink"].encode()
+                ).decode()
+            else:
+                results.pop("addRecipesLink")
+        except (KeyError):
+            return JsonResponse(results)
         return JsonResponse(results)
     else:
         response = JsonResponse({"message": "No ingredients given!"})
@@ -29,13 +49,20 @@ def addRecipes(request: HttpRequest):
     """
     Gives a list of recipes via a recipe link
     """
-    if len(request.META['QUERY_STRING'][9:]) > 0:
-        url = fernet.decrypt(request.META['QUERY_STRING'][9:].encode())
+    if utilities.KeysViewContains("nextLink", request.GET.keys()):
+        url = fernet.decrypt(request.GET["nextLink"].encode())
         response: Response = fetch("GET", url)
         results = FetchFood.serializeRecipeResults(response)
-        results["addRecipesLink"] = fernet.encrypt(results["addRecipesLink"].encode()).decode()
+        try:
+            if results["addRecipesLink"] is not None:
+                results["addRecipesLink"] = fernet.encrypt(
+                    results["addRecipesLink"].encode()
+                ).decode()
+            else:
+                results.pop("addRecipesLink")
+        except (KeyError):
+            return JsonResponse(results)
         return JsonResponse(results)
-    response = JsonResponse({"Valid URL": False})
+    response = JsonResponse({"message": "invalid URL"})
     response.status_code = 400
     return response
-
