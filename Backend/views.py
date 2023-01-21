@@ -11,8 +11,8 @@ def index(request: HttpRequest):
     """
     Gives a list of recipes with recipe link via search options.
     """
-    if not utilities.KeysViewContains(
-        "ingredients", request.GET.keys()
+    if not request.GET.__contains__(
+        "ingredients" 
     ) and not utilities.KeysViewNotContains("ingredients", request.GET.keys()):
         response = JsonResponse({"message": "No ingredients given!"})
         response.status_code = 400
@@ -20,7 +20,7 @@ def index(request: HttpRequest):
 
     ingredients = ""
     options: dict[str] = {}
-    if utilities.KeysViewContains("ingredients", request.GET.keys()):
+    if request.GET.__contains__("ingredients"):
         ingredients = request.GET["ingredients"]
     if utilities.KeysViewNotContains("ingredients", request.GET.keys()):
         for option in request.GET.keys():
@@ -49,7 +49,7 @@ def addRecipes(request: HttpRequest):
     """
     Gives a list of recipes via a recipe link
     """
-    if utilities.KeysViewContains("nextLink", request.GET.keys()):
+    if request.GET.__contains__("nextLink") and request.GET["nextLink"] != "undefined":
         url = fernet.decrypt(request.GET["nextLink"].encode())
         response: Response = fetch("GET", url)
         results = FetchFood.serializeRecipeResults(response)

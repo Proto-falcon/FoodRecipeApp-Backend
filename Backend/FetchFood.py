@@ -24,7 +24,12 @@ def fetchfood(
         for optionName, value in options.items():
             if type(value).__name__ == "list":
                 for option in value:
-                    query += f"&{optionName}={option}"
+                    slash = option.find("/")
+                    if slash <= -1:
+                        query += f"&{optionName}={option}"
+                    else:
+                        noSlashOption = option.split("/")[0]
+                        query += f"&{optionName}={noSlashOption}"                        
             else:
                 query += f"&{optionName}={value}"
 
@@ -60,5 +65,5 @@ def serializeRecipeResults(response: Response):
                 "source": hit["recipe"]["url"],
             }
         )
-
+    print(addRecipesLink)
     return {"results": recipes, "addRecipesLink": addRecipesLink}
