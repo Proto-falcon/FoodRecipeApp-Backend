@@ -1,20 +1,32 @@
+from django.conf import settings
 from Backend import views
 from django.urls import path
+from django.conf.urls.static import static
 
 app_name = "backend"
 urlpatterns = [
+    # Loads the frontend page
+    path("", views.page, name="page"),
+    path("Home/", views.page, name="homePage"),
+    path("Search/", views.page, name="searchOptions"),
+    path("SignUp/", views.page, name="signUp"),
+    path("Login/", views.page, name="Login"),
     # Get Csrf Token
-    path("getToken/", views.getCsrfToken, name="getCsrfToken"),
+    path("api/checkLogin/", views.checkLogin, name="checkLogin"),
     # Gives a list of recipes with recipe link via search options
-    path("fetchRecipes/",views.index, name="index"),
+    path("api/fetchRecipes/",views.index, name="index"),
     # Gives a list of recipes via a recipe link
-    path("addRecipes/", views.addRecipes, name="addRecipes"),
+    path("api/addRecipes/", views.addRecipes, name="addRecipes"),
     # Sign up 
-    path("signup/", views.signUp, name="signUp"),
+    path("api/signup/", views.signUp, name="signUp"),
     # Login
-    path("login/", views.login, name="login"),
+    path("api/login/", views.login, name="login"),
     # Logout
-    path("logout/", views.logout, name="logout"),
+    path("api/logout/", views.logout, name="logout"),
     # Get User info
-    path("profile/", views.getUserProfile, name="profile")
+    path("api/profile/", views.getUserProfile, name="profile")
 ]
+
+if settings.DEBUG:
+    urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
+    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

@@ -10,7 +10,7 @@ class User(AbstractUser):
     So we can make use of Django's authentication system
     '''
     username = models.CharField(max_length=50, unique=True)
-    email = models.EmailField()
+    email = models.EmailField(unique=True)
     image = models.ImageField(upload_to='images')
 
     USERNAME_FIELD = "username"

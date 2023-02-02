@@ -25,25 +25,7 @@ SECRET_KEY = 'django-insecure-p&@#gt#%4*j3ut-vznxr-=wor&6y6w71m(c!z^80a@)ei#%%i&
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = ['*']
-CSRF_TRUSTED_ORIGINS =['http://localhost:19006']
-
-# Corsheaders settings
-CORS_ALLOW_ALL_ORIGINS = True
-CORS_ALLOW_HEADERS = [
-    "accept",
-    "accept-encoding",
-    "authorization",
-    "content-type",
-    "dnt",
-    "origin",
-    "user-agent",
-    "x-csrftoken",
-    "cookie",
-    "x-requested-with",
-    "credentials",
-]
-CORS_ALLOW_CREDENTIALS = True
+ALLOWED_HOSTS = ['192.168.0.30', '127.0.0.1', 'localhost']
 
 LOGIN_URL = '/login/'
 
@@ -57,14 +39,12 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'Backend.apps.BackendConfig',
-    'corsheaders'
 ]
 
 AUTH_USER_MODEL = 'Backend.User'
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
-    'corsheaders.middleware.CorsMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
@@ -143,11 +123,11 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/4.1/howto/static-files/
 
-STATIC_URL = '/static/'
+STATIC_URL = 'static/'
 STATIC_ROOT = BASE_DIR / 'static'
 
 
-MEDIA_URL = '/media/'
+MEDIA_URL = 'media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
 # Default primary key field type
