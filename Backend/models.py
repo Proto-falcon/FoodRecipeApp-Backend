@@ -11,7 +11,6 @@ class User(AbstractUser):
     '''
     username = models.CharField(max_length=50, unique=True)
     email = models.EmailField(unique=True)
-    image = models.ImageField(upload_to='images')
 
     USERNAME_FIELD = "username"
     REQUIRED_FIELDS = ["email"]
@@ -23,13 +22,13 @@ class User(AbstractUser):
         return {
             'username': self.username,
             'email': self.email,
-            'image': self.image.url if self.image else None,
         }
 
 class Recipe(models.Model):
     """
-    Represents recipes in the food database
+    Represents recipes from the Edamam food recipes database
     """
+    user = models.ManyToManyField(User, "user_fav_recipes")
     name = models.CharField(max_length=50)
     source = models.CharField(max_length=512)
     image = models.ImageField(max_length=1000, upload_to="recipeImages")

@@ -38,7 +38,7 @@ def page(request: HttpRequest):
     if request.method == "GET":
         return render(request, "pages/index.html")
     else:
-        return render(request, "error404.html")
+        return render(request, "404.html")
 
 
 def signUp(request: HttpRequest) -> JsonResponse:
@@ -96,26 +96,16 @@ def login(request: HttpRequest) -> JsonResponse:
         and not KeysViewNotContains("username", keys)
         and not KeysViewNotContains("password", keys)
     ):
-        userwithUsername = auth.authenticate(
+        user = auth.authenticate(
             username=content["username"], password=content["password"]
         )
-        userWithEmail = auth.authenticate(
-            email=content["username"], password=content["password"]
-        )
 
-        if userwithUsername is not None:
-            auth.login(request, userwithUsername)
+        if user is not None:
+            auth.login(request, user)
             user: User = fetch_object_or_404(
-                User, username=userwithUsername.get_username()
+                User, username=user.get_username()
             )
             return JsonResponse({"loginSuccess": True, "user": user.to_dict()})
-        elif userWithEmail is not None:
-            if userWithEmail is not None:
-                auth.login(request, userWithEmail)
-                user: User = fetch_object_or_404(
-                    User, username=userWithEmail.get_username()
-                )
-                return JsonResponse({"loginSuccess": True, "user": user.to_dict()})
         response = JsonResponse({"loginSuccess": False, "message": "Account doesn't Exist"})
         response.status_code = INTERNAL_SERVER_ERROR
 
