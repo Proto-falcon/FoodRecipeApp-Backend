@@ -29,7 +29,8 @@ class Recipe(models.Model):
     Represents recipes from the Edamam food recipes database
     """
     user = models.ManyToManyField(User, "user_fav_recipes")
-    name = models.CharField(max_length=50)
-    source = models.CharField(max_length=512)
-    image = models.ImageField(max_length=1000, upload_to="recipeImages")
-    ingredients = ArrayField(base_field=models.CharField(max_length=50))
+    uri = models.CharField(max_length=100)
+    name = models.CharField(max_length=100)
+    source = models.CharField(max_length=2000)
+    image = models.ImageField(max_length=2000, upload_to="recipeImages")
+    ingredients = ArrayField(base_field=models.CharField(max_length=100))

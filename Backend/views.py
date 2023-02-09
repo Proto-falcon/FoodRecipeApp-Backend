@@ -1,6 +1,6 @@
-from django.http import HttpRequest, JsonResponse
+from django.http import HttpRequest, JsonResponse, HttpResponse
 from Backend import FetchFood
-from Backend.utilities import KeysViewNotContains, fetch_object_or_404
+from Backend.utilities import fetch_object_or_404
 from cryptography.fernet import Fernet
 from requests import request as fetch
 import json
@@ -49,18 +49,22 @@ def signUp(request: HttpRequest) -> JsonResponse:
     keys = content.keys()
     if (
         request.method == "POST"
-        and not KeysViewNotContains("username", keys)
-        and not KeysViewNotContains("email", keys)
-        and not KeysViewNotContains("password", keys)
+        and "username" in keys
+        and "email" in keys
+        and "password" in keys
     ):
-        username = content["username"]
-        email = content["email"]
+        username: str = content["username"]
+        email: str = content["email"]
         password = content["password"]
         if User.objects.filter(username=username).exists():
             return JsonResponse(
                 {"signUpSuccess": False, "message": "Account already Exists"}
             )
         else:
+            if len(username) > 50:
+                return JsonResponse(
+                    {"signUpSuccess": False, "message": "Username too long"}
+                )
             newUser = User.objects.create(username=username, email=email)
             newUser.set_password(password)
             newUser.save()
@@ -91,11 +95,7 @@ def login(request: HttpRequest) -> JsonResponse:
     """
     content: dict[str] = json.loads(request.body)
     keys = content.keys()
-    if (
-        request.method == "PUT"
-        and not KeysViewNotContains("username", keys)
-        and not KeysViewNotContains("password", keys)
-    ):
+    if request.method == "PUT" and "username" in keys and "password" in keys:
         user = auth.authenticate(
             username=content["username"], password=content["password"]
         )
@@ -118,28 +118,30 @@ def login(request: HttpRequest) -> JsonResponse:
         return response
 
 
-def index(request: HttpRequest):
+def getRecipes(request: HttpRequest):
     """
     Gives a list of recipes with recipe link via search options.
     """
-    if not request.GET.__contains__("ingredients") and not KeysViewNotContains(
-        "ingredients", request.GET.keys()
-    ):
-        response = JsonResponse({"message": "No ingredients given!"})
+    if len(request.GET) <= 0:
+        response = JsonResponse({"message": "No ingredients or options given!"})
         response.status_code = BAD_REQUEST
         return response
 
     ingredients = ""
-    options: dict[str] = {}
-    if request.GET.__contains__("ingredients"):
+    if "ingredients" in request.GET:
         ingredients = request.GET["ingredients"]
-    if KeysViewNotContains("ingredients", request.GET.keys()):
-        for option in request.GET.keys():
-            if option != "ingredients":
+    
+    options: dict[str] = {}
+    exclusions: list[str] = []
+    for option in request.GET.keys():
+        if option != "ingredients" and option not in options:
+            if option == "excluded":
+                exclusions = request.GET.getlist(option)
+            else:
                 options[option] = request.GET.getlist(option)
 
     if len(ingredients) > 0 or len(options):
-        results = FetchFood.fetchfood(ingredients, options)
+        results = FetchFood.fetchfood(ingredients, options, exclusions)
         try:
             if results["addRecipesLink"] is not None:
                 results["addRecipesLink"] = fernet.encrypt(
@@ -160,10 +162,13 @@ def addRecipes(request: HttpRequest) -> JsonResponse:
     """
     Gives a list of recipes via a recipe link
     """
-    if request.GET.__contains__("nextLink") and request.GET["nextLink"] != "undefined":
+    if "nextLink" in request.GET and request.GET["nextLink"] != "undefined":
         url = fernet.decrypt(request.GET["nextLink"].encode())
         response: JsonResponse = fetch("GET", url)
-        results = FetchFood.serializeRecipeResults(response)
+        exclusions = []
+        if "excluded" in request.GET:
+            exclusions = request.GET.getlist("excluded")
+        results = FetchFood.serializeRecipeResults(response, exclusions)
         try:
             if results["addRecipesLink"] is not None:
                 results["addRecipesLink"] = fernet.encrypt(
@@ -186,6 +191,38 @@ def getUserProfile(request: HttpRequest) -> JsonResponse:
     """
     user = get_object_or_404(User, username=request.user.username)
     return JsonResponse(user.to_dict())
+
+@login_required
+def updateUserInfo(request: HttpRequest):
+    """
+    Updates the user's username
+    """
+    if request.method == "PUT":
+        user = fetch_object_or_404(User, username=request.user.get_username())
+        if user is not False:
+            content: dict[str, str] = json.loads(request.body)
+            messages: dict[str, str] = {}
+            if "username" in content:
+                user.username = content["username"]
+                messages["usernameMsg"] = "Updated Username"
+                user.save()
+
+            if "email" in content:
+                user.email = content["email"]
+                messages["emailMsg"] = "Updated Email"
+                user.save()
+            
+            if "password" in content:
+                user.set_password(content["password"])
+                messages["passwordMsg"] = "Updated Password"
+                user.save()
+                auth.update_session_auth_hash(request, user)
+
+            return JsonResponse(messages)
+    
+    response = JsonResponse({"message": "Invalid operation or user doesn't exist"})
+    response.status_code = BAD_REQUEST
+    return response
 
 
 @login_required
