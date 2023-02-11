@@ -140,7 +140,7 @@ def getRecipes(request: HttpRequest):
             else:
                 options[option] = request.GET.getlist(option)
 
-    if len(ingredients) > 0 or len(options):
+    if len(ingredients) > 0 or len(options) > 0 or len(exclusions):
         results = FetchFood.fetchfood(ingredients, options, exclusions)
         try:
             if results["addRecipesLink"] is not None:
@@ -149,9 +149,9 @@ def getRecipes(request: HttpRequest):
                 ).decode()
             else:
                 results.pop("addRecipesLink")
+            return JsonResponse(results)
         except (KeyError):
             return JsonResponse(results)
-        return JsonResponse(results)
     else:
         response = JsonResponse({"message": "No ingredients given!"})
         response.status_code = BAD_REQUEST

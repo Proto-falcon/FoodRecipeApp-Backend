@@ -14,15 +14,13 @@ def fetchfood(
     """
     query: str = ""
     
-    if ingredients == "" and len(options) <= 0:
+    if ingredients == "" and len(options) <= 0 and len(exclusions) <= 0:
         return {"message": "No Arguments given"}
     
     if ingredients != "":
         query += f"q={ingredients}"
     
     if len(options) > 0:
-        # if len(query) > 0 :
-        #     query += "&"
         for optionName, value in options.items():
             if len(query) > 0 and len(value) > 0:
                 query += "&"
@@ -51,7 +49,6 @@ def fetchfood(
     fullURL = f"{domain}?type=any&{query}&{appKey.credentials}"
     response: Response = fetch("GET", fullURL)
     results = serializeRecipeResults(response, exclusions)
-
     return results
 
 
