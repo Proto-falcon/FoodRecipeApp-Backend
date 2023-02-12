@@ -8,7 +8,6 @@ click==8.0.4
 colorama==0.4.5
 cryptography==37.0.1
 Django==4.1
-django-cors-headers==3.13.0
 idna==3.4
 mypy-extensions==0.4.3
 pathspec==0.9.0

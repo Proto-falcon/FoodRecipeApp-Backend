@@ -46,7 +46,7 @@ def fetchfood(
 
     domain: str = "https://api.edamam.com/api/recipes/v2"  # Web API Endpoint
     # Sends the request to the food API
-    fullURL = f"{domain}?type=any&{query}&{appKey.credentials}"
+    fullURL = f"{domain}?type=public&{query}&{appKey.credentials}"
     response: Response = fetch("GET", fullURL)
     results = serializeRecipeResults(response, exclusions)
     return results

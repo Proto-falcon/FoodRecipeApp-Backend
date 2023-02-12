@@ -1,4 +1,3 @@
-from django.contrib.postgres.fields import ArrayField
 from django.db import models
 from django.contrib.auth.models import AbstractUser
 
@@ -24,13 +23,26 @@ class User(AbstractUser):
             'email': self.email,
         }
 
+# class RecentRecipe(models.Model()):
+#     """
+#     Recently viewd recipes from user
+#     """
+#     user = models.ForeignKey(User, on_delete=models.CASCADE)
+#     uri = models.CharField(max_length=2000)
+
+
+# class FavRecipe(models.Model):
+#     """
+#     Represents recipes favourited by the user from the Edamam food recipes database
+#     """
+#     user = models.ForeignKey(User, on_delete=models.CASCADE)
+#     uri = models.CharField(max_length=2000)
+
 class Recipe(models.Model):
     """
     Represents recipes from the Edamam food recipes database
     """
-    user = models.ManyToManyField(User, "user_fav_recipes")
-    uri = models.CharField(max_length=100)
-    name = models.CharField(max_length=100)
-    source = models.CharField(max_length=2000)
-    image = models.ImageField(max_length=2000, upload_to="recipeImages")
-    ingredients = ArrayField(base_field=models.CharField(max_length=100))
+    userRecent = models.ManyToManyField(User, "recent_recipes")
+    userFav = models.ManyToManyField(User, "favourite_recipes")
+    uri = models.CharField(max_length=2000)
+
