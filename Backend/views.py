@@ -17,6 +17,8 @@ fernet = Fernet(key)
 BAD_REQUEST = 400
 INTERNAL_SERVER_ERROR = 500
 
+RECENT_LIMIT = 3
+
 # Create your views here.
 def checkLogin(request: HttpRequest) -> JsonResponse:
     if request.method == "GET":
@@ -35,11 +37,13 @@ def page(request: HttpRequest):
     """
     Loads the frontend page.
     """
-    if request.method == "GET":
-        return render(request, "pages/index.html")
-    else:
-        return render(request, "404.html")
+    return render(request, "pages/index.html")
 
+def recipePage(request: HttpRequest, id: str):
+    """
+    Loads the recipe info page
+    """
+    return render(request, "pages/index.html")
 
 def signUp(request: HttpRequest) -> JsonResponse:
     """
@@ -163,12 +167,12 @@ def addRecipes(request: HttpRequest) -> JsonResponse:
     Gives a list of recipes via a recipe link
     """
     if "nextLink" in request.GET and request.GET["nextLink"] != "undefined":
-        url = fernet.decrypt(request.GET["nextLink"].encode())
+        url = fernet.decrypt(request.GET["nextLink"].encode(), 31557600)
         response: JsonResponse = fetch("GET", url)
-        exclusions = []
-        if "excluded" in request.GET:
-            exclusions = request.GET.getlist("excluded")
-        results = FetchFood.serializeRecipeResults(response, exclusions)
+        # exclusions = []
+        # if "excluded" in request.GET:
+        #     exclusions = request.GET.getlist("excluded")
+        results = FetchFood.serializeRecipeResults(response)
         try:
             if results["addRecipesLink"] is not None:
                 results["addRecipesLink"] = fernet.encrypt(
@@ -185,12 +189,81 @@ def addRecipes(request: HttpRequest) -> JsonResponse:
 
 
 @login_required
+def setRecentRecipe(request: HttpRequest):
+    """
+    Adds or updates a recent recipe that the user has viewed.
+    """
+    if request.method == "POST":
+        try:
+            user = User.objects.get(username=request.user.get_username())
+        except (User.DoesNotExist):
+            response = JsonResponse({"added": False, "message": "User doesn't exist"})
+            response.status_code = BAD_REQUEST
+            return response
+        
+        content: dict[str,str] = json.loads(request.body)
+        try:
+            recipe = Recipe.objects.get(uri=content["id"])
+        except (Recipe.DoesNotExist):
+            recipe: Recipe = Recipe(uri=content["id"])
+        
+        recipe.save()
+
+        try:
+            recentRecipes = RecentRecipe.objects.filter().order_by('-dateAdded') # Gets recent recipes in most recent order from first to last
+            if len(recentRecipes) >= RECENT_LIMIT:
+                recentRecipes[len(recentRecipes)-1].delete() # Deletes the least recent recipe
+            recentRecipe = RecentRecipe.objects.get(recipe=recipe, user=user)
+        except (RecentRecipe.DoesNotExist):
+            recentRecipe = RecentRecipe(recipe=recipe, user=user)
+
+        recentRecipe.save()
+
+        return HttpResponse()
+
+    response = JsonResponse({"added": False, "message": "Invaild HTTP request"})
+    response.status_code = BAD_REQUEST
+    return response
+
+
+@login_required
+def getRecentRecipes(request: HttpRequest):
+    """
+    Gives list of recent recipes from the user that it requests has seen
+    """
+    if request.method == "GET":
+        recentRecipes: list[dict[str]] = []
+        results = RecentRecipe.objects.filter(user=request.user.get_username()).order_by('-dateAdded')
+        
+        for recipe in results:
+            recentRecipes.append(FetchFood.fetchRecipe(recipe.recipe.uri))
+        
+        return JsonResponse({"results": recentRecipes})
+
+
+    response = JsonResponse({"message": "Invalid HTTP method"})
+    response.status_code = BAD_REQUEST
+    return response
+
+
+def getRecipe(request: HttpRequest):
+    """
+    Gives a recipe by its uri
+    """
+    if request.method == "GET" and "id" in request.GET:
+        return JsonResponse(FetchFood.fetchRecipe(request.GET["id"]))
+    response = JsonResponse({"message": "Invald HTTP method and query"})
+    response.status_code = BAD_REQUEST
+    return response
+
+@login_required
 def getUserProfile(request: HttpRequest) -> JsonResponse:
     """
     Gives the all the user info needed for their profile.
     """
     user = get_object_or_404(User, username=request.user.username)
     return JsonResponse(user.to_dict())
+
 
 @login_required
 def updateUserInfo(request: HttpRequest):

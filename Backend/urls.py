@@ -1,9 +1,36 @@
 from django.conf import settings
 from Backend import views
-from django.urls import path
+from django.urls import path, include
 from django.conf.urls.static import static
 
 app_name = "backend"
+
+# API Urls
+apipatterns = [
+    # Get Csrf Token
+    path("checkLogin/", views.checkLogin, name="checkLogin"),
+    # Gives a list of recipes with recipe link via search options
+    path("fetchRecipes/",views.getRecipes, name="index"),
+    # Gives a list of recipes via a recipe link
+    path("addRecipes/", views.addRecipes, name="addRecipes"),
+    # Sign up 
+    path("signup/", views.signUp, name="signUp"),
+    # Login
+    path("login/", views.login, name="login"),
+    # Logout
+    path("logout/", views.logout, name="logout"),
+    # Get User info
+    path("profile/", views.getUserProfile, name="profile"),
+    # Updates the user's information
+    path("updateUserInfo/", views.updateUserInfo, name="updateUserInfo"),
+    # Get Recent Recipes from the requested user
+    path("getRecentRecipes/", views.getRecentRecipes, name="getRecentRecipes"),
+    # Sets the recently viewed recipe for the logged in user
+    path("setRecentRecipe/", views.setRecentRecipe, name="setRecentRecipe"),
+    # Get a single recipe
+    path("getRecipe/", views.getRecipe, name="getRecipe")
+]
+
 urlpatterns = [
     # Loads the frontend page
     path("", views.page, name="page"),
@@ -12,22 +39,9 @@ urlpatterns = [
     path("SignUp/", views.page, name="signUp"),
     path("Login/", views.page, name="Login"),
     path("Profile/", views.page, name="Profile"),
-    # Get Csrf Token
-    path("api/checkLogin/", views.checkLogin, name="checkLogin"),
-    # Gives a list of recipes with recipe link via search options
-    path("api/fetchRecipes/",views.getRecipes, name="index"),
-    # Gives a list of recipes via a recipe link
-    path("api/addRecipes/", views.addRecipes, name="addRecipes"),
-    # Sign up 
-    path("api/signup/", views.signUp, name="signUp"),
-    # Login
-    path("api/login/", views.login, name="login"),
-    # Logout
-    path("api/logout/", views.logout, name="logout"),
-    # Get User info
-    path("api/profile/", views.getUserProfile, name="profile"),
-    # Updates the user's information
-    path("api/updateUserInfo/", views.updateUserInfo, name="updateUserInfo"),
+    path("RecipeInfo/<str:id>", views.recipePage, name="RecipeInfo"),
+    # API URLs
+    path("api/", include(apipatterns))
 ]
 
 if settings.DEBUG:
