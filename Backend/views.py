@@ -195,7 +195,7 @@ def setRecentRecipe(request: HttpRequest):
     """
     if request.method == "POST":
         try:
-            user = User.objects.get(username=request.user.get_username())
+            user = User.objects.get(pk=request.user.pk)
         except (User.DoesNotExist):
             response = JsonResponse({"added": False, "message": "User doesn't exist"})
             response.status_code = BAD_REQUEST
@@ -233,7 +233,7 @@ def getRecentRecipes(request: HttpRequest):
     """
     if request.method == "GET":
         recentRecipes: list[dict[str]] = []
-        results = RecentRecipe.objects.filter(user=request.user.get_username()).order_by('-dateAdded')
+        results = RecentRecipe.objects.filter(user=request.user.pk).order_by('-dateAdded')
         
         for recipe in results:
             recentRecipes.append(FetchFood.fetchRecipe(recipe.recipe.uri))
@@ -261,14 +261,14 @@ def getUserProfile(request: HttpRequest) -> JsonResponse:
     """
     Gives the all the user info needed for their profile.
     """
-    user = get_object_or_404(User, username=request.user.username)
+    user = get_object_or_404(User, pk=request.user.pk)
     return JsonResponse(user.to_dict())
 
 
 @login_required
 def updateUserInfo(request: HttpRequest):
     """
-    Updates the user's username
+    Updates the user's information
     """
     if request.method == "PUT":
         user = fetch_object_or_404(User, username=request.user.get_username())

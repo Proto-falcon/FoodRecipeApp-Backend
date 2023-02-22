@@ -31,7 +31,7 @@ class Recipe(models.Model):
     Represents recipes from the Edamam food recipes database
     """
 
-    uri = models.CharField(max_length=2000, unique=True)
+    uri = models.CharField(max_length=2000, unique=True, primary_key=True)
 
     REQUIRED_FIELDS = ["uri"]
 
@@ -40,8 +40,8 @@ class RecentRecipe(models.Model):
     """
     Represents recently viewd recipes from user
     """
-    user = models.ForeignKey(User, to_field="username", on_delete=models.CASCADE)
-    recipe = models.ForeignKey(Recipe, to_field="uri", on_delete=models.CASCADE)
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    recipe = models.ForeignKey(Recipe, on_delete=models.CASCADE)
     dateAdded = models.DateTimeField(auto_now=True)
 
     def to_dict(self):
@@ -56,6 +56,6 @@ class FavRecipe(models.Model):
     """
     Represents recipes favourited by the user from the Edamam food recipes database
     """
-    user = models.ForeignKey(User, to_field="username", on_delete=models.CASCADE)
-    recipe = models.ForeignKey(Recipe, to_field="uri", on_delete=models.CASCADE)
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    recipe = models.ForeignKey(Recipe, on_delete=models.CASCADE)
     dateAdded = models.DateTimeField(auto_now=True)

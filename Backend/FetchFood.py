@@ -67,14 +67,10 @@ def transformRecipe(recipeRaw: dict[str]):
     Convers the results of the recipe results to only give important information
     """
     ingredients: list[str] = recipeRaw["recipe"]["ingredientLines"]
-    # noExclusions = True
-    # for ingredient in ingredients:
-    #     if ingredient.lower() in exclusions:
-    #         noExclusions = False
-    #         break
+
     id: str = recipeRaw["recipe"]["uri"]
     id = id.split("#recipe_")[-1]
-    # if noExclusions:
+    
     return {
             "id": id,
             "name": recipeRaw["recipe"]["label"],
@@ -98,10 +94,6 @@ def serializeRecipeResults(response: Response):
         addRecipesLink: str = content["_links"]["next"]["href"]
     except (KeyError):
         addRecipesLink = None
-
-    # Converts all exclusions to lower case to remove any capital letters
-    # for excluded in exclusions:
-    #     excluded = excluded.lower()
 
     recipes: list[dict[str]] = []
     for hit in hits:
