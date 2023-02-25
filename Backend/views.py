@@ -1,6 +1,6 @@
 from django.http import HttpRequest, JsonResponse, HttpResponse
 from Backend import FetchFood
-from Backend.utilities import fetch_object_or_404
+from Backend.utilities import fetch_object_or_404, createFullRecipe
 from cryptography.fernet import Fernet
 from requests import request as fetch
 import json
@@ -169,9 +169,6 @@ def addRecipes(request: HttpRequest) -> JsonResponse:
     if "nextLink" in request.GET and request.GET["nextLink"] != "undefined":
         url = fernet.decrypt(request.GET["nextLink"].encode(), 31557600)
         response: JsonResponse = fetch("GET", url)
-        # exclusions = []
-        # if "excluded" in request.GET:
-        #     exclusions = request.GET.getlist("excluded")
         results = FetchFood.serializeRecipeResults(response)
         try:
             if results["addRecipesLink"] is not None:
@@ -188,38 +185,37 @@ def addRecipes(request: HttpRequest) -> JsonResponse:
     return response
 
 
-@login_required
 def setRecentRecipe(request: HttpRequest):
     """
     Adds or updates a recent recipe that the user has viewed.
     """
     if request.method == "POST":
-        try:
-            user = User.objects.get(pk=request.user.pk)
-        except (User.DoesNotExist):
-            response = JsonResponse({"added": False, "message": "User doesn't exist"})
-            response.status_code = BAD_REQUEST
-            return response
-        
         content: dict[str,str] = json.loads(request.body)
         try:
             recipe = Recipe.objects.get(uri=content["id"])
+            recipe.save()
         except (Recipe.DoesNotExist):
-            recipe: Recipe = Recipe(uri=content["id"])
-        
-        recipe.save()
+            fullRecipe = FetchFood.fetchRecipe(content["id"])
+            recipe = createFullRecipe(content["id"], fullRecipe)
 
         try:
-            recentRecipes = RecentRecipe.objects.filter().order_by('-dateAdded') # Gets recent recipes in most recent order from first to last
+            user = User.objects.get(pk=request.user.pk)
+
+            # Gets recent recipes in most recent order from first to last
+            recentRecipes = RecentRecipe.objects.filter().order_by('-dateAdded')
             if len(recentRecipes) >= RECENT_LIMIT:
                 recentRecipes[len(recentRecipes)-1].delete() # Deletes the least recent recipe
-            recentRecipe = RecentRecipe.objects.get(recipe=recipe, user=user)
-        except (RecentRecipe.DoesNotExist):
-            recentRecipe = RecentRecipe(recipe=recipe, user=user)
 
-        recentRecipe.save()
+            try:
+                recentRecipe = RecentRecipe.objects.get(recipe=recipe, user=user)
+            except (RecentRecipe.DoesNotExist):
+                recentRecipe = RecentRecipe(recipe=recipe, user=user)
 
-        return HttpResponse()
+            recentRecipe.save()
+
+            return HttpResponse()
+        except (User.DoesNotExist):
+            return HttpResponse()
 
     response = JsonResponse({"added": False, "message": "Invaild HTTP request"})
     response.status_code = BAD_REQUEST
@@ -235,8 +231,18 @@ def getRecentRecipes(request: HttpRequest):
         recentRecipes: list[dict[str]] = []
         results = RecentRecipe.objects.filter(user=request.user.pk).order_by('-dateAdded')
         
-        for recipe in results:
-            recentRecipes.append(FetchFood.fetchRecipe(recipe.recipe.uri))
+
+        """
+        Query the recent recipes in our own database instead of fetching from
+        the web API, this way we can increase limit of recent recipes they can
+        view without reaching the web api limit calls per minute.
+        """
+
+
+        for recentRecipe in results:
+            recentRecipes.append(
+                Recipe.objects.get(user=request.user.pk, recipe=recentRecipe.recipe).to_dict(False)
+            )
         
         return JsonResponse({"results": recentRecipes})
 
@@ -251,7 +257,10 @@ def getRecipe(request: HttpRequest):
     Gives a recipe by its uri
     """
     if request.method == "GET" and "id" in request.GET:
-        return JsonResponse(FetchFood.fetchRecipe(request.GET["id"]))
+        try:
+            return JsonResponse(Recipe.objects.get(uri=request.GET["id"]).to_dict(True))
+        except(Recipe.DoesNotExist):
+            return JsonResponse(FetchFood.fetchRecipe(request.GET["id"]))
     response = JsonResponse({"message": "Invald HTTP method and query"})
     response.status_code = BAD_REQUEST
     return response

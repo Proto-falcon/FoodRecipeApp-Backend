@@ -55,29 +55,46 @@ def fetchfood(
 
 def fetchRecipe(id: str):
     """
-    Fetches a single recipe via id
+    Fetches a single recipe via id with all relevant information
     """
     fullURL = f"{endpoint}/{id}?type=public&{appKey.credentials}"
     response: Response = fetch("GET", fullURL)
     content = json.loads(response.content)
-    return transformRecipe(content)
+    return transformRecipe(content, True)
 
-def transformRecipe(recipeRaw: dict[str]):
+def transformRecipe(recipeRaw: dict[str], fullInfo: bool):
     """
     Convers the results of the recipe results to only give important information
     """
-    ingredients: list[str] = recipeRaw["recipe"]["ingredientLines"]
 
     id: str = recipeRaw["recipe"]["uri"]
     id = id.split("#recipe_")[-1]
-    
-    return {
-            "id": id,
-            "name": recipeRaw["recipe"]["label"],
-            "image": recipeRaw["recipe"]["images"]["SMALL"]["url"],
-            "ingredients": ingredients,
-            "source": recipeRaw["recipe"]["url"],
-        }
+    if not fullInfo:
+        return {
+                "id": id,
+                "name": recipeRaw["recipe"]["label"],
+                "image": recipeRaw["recipe"]["images"]["SMALL"]["url"]
+            }
+    else:
+        rawNutrients: dict[str, dict[str, str | float]] = recipeRaw["recipe"]["totalNutrients"]
+        nutrients: list[dict[str, str | float]] = []
+        for nutrient in rawNutrients.values():
+            nutrients.append({**nutrient})
+        return {
+                "id": id,
+                "name": recipeRaw["recipe"]["label"],
+                "image": recipeRaw["recipe"]["images"]["SMALL"]["url"],
+                "cautions": recipeRaw["recipe"]["cautions"],
+                "diets": recipeRaw["recipe"]["dietLabels"],
+                "healths": recipeRaw["recipe"]["healthLabels"],
+                "cuisineTypes": recipeRaw["recipe"]["cuisineType"],
+                "mealTypes": recipeRaw["recipe"]["mealType"],
+                "dishTypes": recipeRaw["recipe"]["dishType"],
+                "ingredients": recipeRaw["recipe"]["ingredientLines"],
+                "fullIngredients": recipeRaw["recipe"]["ingredients"],
+                "nutrients": nutrients,
+                "source": recipeRaw["recipe"]["url"],
+            }
 
 def serializeRecipeResults(response: Response):
     """
@@ -97,7 +114,7 @@ def serializeRecipeResults(response: Response):
 
     recipes: list[dict[str]] = []
     for hit in hits:
-        recipe = transformRecipe(hit)
+        recipe = transformRecipe(hit, False)
         if recipe is not None:
             recipes.append(recipe)
     return {"results": recipes, "addRecipesLink": addRecipesLink}

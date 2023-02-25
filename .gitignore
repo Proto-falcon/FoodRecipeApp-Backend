@@ -1,3 +1,4 @@
 __pycache__/
 appKey.py
 Backend/migrations/*[0-9]_*.py
+media/images/recipes/*.jpg
