@@ -68,7 +68,7 @@ class Recipe(models.Model):
                 "name": self.name,
                 "image": self.image.url if self.image else None,
                 "source": self.source,
-                "ingredients": self.getIngredientList(fullInfo),
+                "ingredients": self.getIngredientList(False),
             }
         
         if fullInfo:
@@ -97,7 +97,7 @@ class Recipe(models.Model):
                     str(dishType)
                     for dishType in DishType.objects.filter(recipe=self.uri)
                 ],
-                "ingredients": self.getIngredientList(fullInfo),
+                "ingredients": self.getIngredientList(False),
                 "nutrients": [
                     nutrient.to_dict()
                     for nutrient in Nutrient.objects.filter(recipe=self.uri)

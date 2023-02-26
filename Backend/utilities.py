@@ -2,7 +2,6 @@ from django.shortcuts import get_object_or_404
 from django.http import Http404
 from django.core.files.images import ImageFile
 from requests import request as fetch
-from PIL import Image
 from io import BytesIO
 
 from Backend.models import *
@@ -28,14 +27,15 @@ def createFullRecipe(id: str, fullRecipe: dict[str]):
     response = fetch("GET", fullRecipe["image"])
 
     # Get images via python requests module instead Django's UploadedFile object in requests passed to the view functions
-    imageFile = ImageFile(BytesIO(response.content))
-
-    recipe = Recipe(
-        uri=id,
-        name=fullRecipe["name"],
-        source=fullRecipe["source"]
-    )
-    recipe.image.save(f"{recipe.name}.jpg", imageFile, True)
+    with BytesIO(response.content) as bytesImage, ImageFile(bytesImage, f"{fullRecipe['name']}.jpg") as imageFile:
+        recipe = Recipe(
+            uri=id,
+            name=fullRecipe["name"],
+            image= imageFile,
+            source=fullRecipe["source"]
+        )
+        # recipe.image.save(f"{recipe.name}.jpg", imageFile, True)
+        recipe.save()
 
     # Creates Diet objects for recipe object
     for diet in fullRecipe["diets"]:
