@@ -65,10 +65,10 @@ def createFullRecipe(id: str, fullRecipe: dict[str]):
             if ingredient == fullIngr["text"]:
                 Ingredient(
                     text=ingrText,
-                    name=fullIngr["food"],
-                    quantity=fullIngr["quantity"],
-                    measure=fullIngr["measure"],
-                    category=fullIngr["foodCategory"]
+                    name=fullIngr["food"] if fullIngr["food"] is not None else "",
+                    quantity=fullIngr["quantity"] if fullIngr["quantity"] is not None else 0,
+                    measure=fullIngr["measure"] if fullIngr["measure"] is not None else "",
+                    category=fullIngr["foodCategory"] if fullIngr["foodCategory"] is not None else ""
                 ).save()
 
     # Creates Caution objects for the recipe object
@@ -83,7 +83,7 @@ def createFullRecipe(id: str, fullRecipe: dict[str]):
             recipe=recipe,
             label=nutrient["label"],
             quantity=nutrient["quantity"],
-            unit=nutrient["unit"]
+            unit=nutrient["unit"]if nutrient["unit"] is not None else ""
         ).save()
     
     return recipe

@@ -17,7 +17,7 @@ fernet = Fernet(key)
 BAD_REQUEST = 400
 INTERNAL_SERVER_ERROR = 500
 
-RECENT_LIMIT = 3
+RECENT_LIMIT = 5
 
 # Create your views here.
 def checkLogin(request: HttpRequest) -> JsonResponse:
@@ -202,8 +202,8 @@ def setRecentRecipe(request: HttpRequest):
             user = User.objects.get(pk=request.user.pk)
 
             # Gets recent recipes in most recent order from first to last
-            recentRecipes = RecentRecipe.objects.filter().order_by('-dateAdded')
-            if len(recentRecipes) >= RECENT_LIMIT:
+            recentRecipes = RecentRecipe.objects.filter().order_by('-date')
+            if len(recentRecipes) > RECENT_LIMIT:
                 recentRecipes[len(recentRecipes)-1].delete() # Deletes the least recent recipe
 
             try:
@@ -229,20 +229,10 @@ def getRecentRecipes(request: HttpRequest):
     """
     if request.method == "GET":
         recentRecipes: list[dict[str]] = []
-        results = RecentRecipe.objects.filter(user=request.user.pk).order_by('-dateAdded')
-        
-
-        """
-        Query the recent recipes in our own database instead of fetching from
-        the web API, this way we can increase limit of recent recipes they can
-        view without reaching the web api limit calls per minute.
-        """
-
+        results = RecentRecipe.objects.filter(user=request.user.pk).order_by('-date')
 
         for recentRecipe in results:
-            recentRecipes.append(
-                Recipe.objects.get(user=request.user.pk, recipe=recentRecipe.recipe).to_dict(False)
-            )
+            recentRecipes.append(recentRecipe.to_dict(True))
         
         return JsonResponse({"results": recentRecipes})
 

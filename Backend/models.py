@@ -40,6 +40,9 @@ class Recipe(models.Model):
 
     REQUIRED_FIELDS = ["uri"]
 
+    def __str__(self) -> str:
+        return f"ID: {self.uri}, Name:{self.name}"
+
     def getIngredientList(self, fullInfo: bool):
         """
         Gets a list of ingredients with just text when `fullInfo` is `False`,
@@ -68,7 +71,9 @@ class Recipe(models.Model):
                 "name": self.name,
                 "image": self.image.url if self.image else None,
                 "source": self.source,
-                "ingredients": self.getIngredientList(False),
+                "ingredients": self.getIngredientList(False)
+                # Calculate the average rating of the recipes from users
+                # via django builtin aggregate functions `RateRecipe.objects.filter(recipe=self.uri).aggregate(Avg('rating'))`
             }
         
         if fullInfo:
@@ -97,7 +102,6 @@ class Recipe(models.Model):
                     str(dishType)
                     for dishType in DishType.objects.filter(recipe=self.uri)
                 ],
-                "ingredients": self.getIngredientList(False),
                 "nutrients": [
                     nutrient.to_dict()
                     for nutrient in Nutrient.objects.filter(recipe=self.uri)
@@ -242,12 +246,13 @@ class RecentRecipe(models.Model):
     recipe = models.ForeignKey(Recipe, on_delete=models.CASCADE)
     date = models.DateTimeField(auto_now=True)
 
-    def to_dict(self):
-        return {
-            "user": self.user.username,
-            "id": self.recipe.uri,
-            "date": self.date
-        }
+    def __str__(self) -> str:
+        return f"{self.recipe}, By: {self.user}"
+
+    def to_dict(self, fullInfo: bool):
+        recipe = self.recipe.to_dict(fullInfo)
+        recipe.update({"user": self.user.username, "date": self.date})
+        return recipe
 
 
 class FavRecipe(models.Model):
@@ -258,9 +263,10 @@ class FavRecipe(models.Model):
     recipe = models.ForeignKey(Recipe, on_delete=models.CASCADE)
     date = models.DateTimeField(auto_now=True)
 
-    def to_dict(self):
-        return {
-            "user": self.user.username,
-            "id": self.recipe.uri,
-            "date": self.date
-        }
+    def __str__(self) -> str:
+        return f"{self.recipe}, By: {self.user}"
+
+    def to_dict(self, fullInfo: bool):
+        recipe = self.recipe.to_dict(fullInfo)
+        recipe.update({"user": self.user.username, "date": self.date})
+        return recipe
