@@ -28,7 +28,9 @@ apipatterns = [
     # Sets the recently viewed recipe for the logged in user
     path("setRecentRecipe/", views.setRecentRecipe, name="setRecentRecipe"),
     # Get a single recipe
-    path("getRecipe/", views.getRecipe, name="getRecipe")
+    path("getRecipe/", views.getRecipe, name="getRecipe"),
+    # Set a rating on a recipe
+    path("setRating/",views.setRating, name="setRating")
 ]
 
 urlpatterns = [

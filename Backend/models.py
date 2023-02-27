@@ -1,10 +1,12 @@
 from django.db import models
 from django.contrib.auth.models import AbstractUser
-from django.core.validators import MinValueValidator
+from django.core.validators import MinValueValidator, MaxValueValidator
 
 # Create your models here.
 
-
+MIN_FLOAT = 0
+MAX_RATING = 5
+MIN_RATING = 1
 class User(AbstractUser):
     """
     Our User models is a sub-class of Django's AbstractUser
@@ -71,9 +73,8 @@ class Recipe(models.Model):
                 "name": self.name,
                 "image": self.image.url if self.image else None,
                 "source": self.source,
-                "ingredients": self.getIngredientList(False)
-                # Calculate the average rating of the recipes from users
-                # via django builtin aggregate functions `RateRecipe.objects.filter(recipe=self.uri).aggregate(Avg('rating'))`
+                "ingredients": self.getIngredientList(False),
+                "rating": RateRecipe.objects.filter(recipe=self.uri).aggregate(models.Avg('rating'))["rating__avg"]
             }
         
         if fullInfo:
@@ -173,7 +174,7 @@ class RateRecipe(models.Model):
 
     user = models.ForeignKey(User, on_delete=models.CASCADE)
     recipe = models.ForeignKey(Recipe, on_delete=models.CASCADE)
-    rating = models.SmallIntegerField()
+    rating = models.PositiveSmallIntegerField(validators=[MaxValueValidator(MAX_RATING)])
 
 
 class Caution(models.Model):
@@ -196,7 +197,7 @@ class Nutrient(models.Model):
 
     recipe = models.ForeignKey(Recipe, on_delete=models.CASCADE)
     label = models.CharField(max_length=50)
-    quantity = models.FloatField(validators=[MinValueValidator(0)])
+    quantity = models.FloatField(validators=[MinValueValidator(MIN_FLOAT)])
     unit = models.CharField(max_length=50)
 
     def to_dict(self):
@@ -225,7 +226,7 @@ class Ingredient(models.Model):
 
     text = models.ForeignKey(IngredientText, on_delete=models.CASCADE)
     name = models.CharField(max_length=100)
-    quantity = models.FloatField(validators=[MinValueValidator(0)])
+    quantity = models.FloatField(validators=[MinValueValidator(MIN_FLOAT)])
     measure = models.CharField(max_length=100)
     category = models.CharField(max_length=100)
 

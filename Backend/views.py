@@ -247,13 +247,55 @@ def getRecipe(request: HttpRequest):
     Gives a recipe by its uri
     """
     if request.method == "GET" and "id" in request.GET:
+        recipe = {"minRating": MIN_RATING, "maxRating": MAX_RATING}
         try:
-            return JsonResponse(Recipe.objects.get(uri=request.GET["id"]).to_dict(True))
+            recipe.update(Recipe.objects.get(uri=request.GET["id"]).to_dict(True))
         except(Recipe.DoesNotExist):
-            return JsonResponse(FetchFood.fetchRecipe(request.GET["id"]))
-    response = JsonResponse({"message": "Invald HTTP method and query"})
+            recipe.update(FetchFood.fetchRecipe(request.GET["id"]))
+        
+        try:
+            userRating = RateRecipe.objects.get(recipe=request.GET["id"], user=request.user.pk).rating
+            recipe.update({"userRating": userRating})
+        except (RateRecipe.DoesNotExist):
+            recipe.update({"userRating": 0})
+
+        return JsonResponse(recipe)
+    
+    response = JsonResponse({"message": "Invald HTTP method or query missing ID"})
     response.status_code = BAD_REQUEST
     return response
+
+@login_required
+def setRating(request: HttpRequest):
+    """
+    Sets the rating of a recipe
+    """
+    content: dict[str,int | str] = json.loads(request.body)
+    if request.method == "PUT" and "id" in content and "rating" in content:
+        try:
+            recipe = Recipe.objects.get(uri=content["id"])
+        except (Recipe.DoesNotExist):
+            response = JsonResponse({"message": "ID doesn't match with a recipe"})
+            response.status_code = 404
+            return response
+        
+        user = User.objects.get(pk=request.user.pk)
+
+        try:
+            rateRecipe = RateRecipe.objects.get(user=user, recipe=recipe)
+            rateRecipe.rating = content["rating"]
+        except (RateRecipe.DoesNotExist):
+            rateRecipe = RateRecipe(recipe=recipe, user=user, rating=content["rating"])
+
+        rateRecipe.save()
+        
+        return HttpResponse()
+
+    response = JsonResponse({"message": "Invald HTTP method or query missing ID"})
+    print(1)
+    response.status_code = BAD_REQUEST
+    return response
+
 
 @login_required
 def getUserProfile(request: HttpRequest) -> JsonResponse:
@@ -270,7 +312,7 @@ def updateUserInfo(request: HttpRequest):
     Updates the user's information
     """
     if request.method == "PUT":
-        user = fetch_object_or_404(User, username=request.user.get_username())
+        user: User = fetch_object_or_404(User, username=request.user.get_username())
         if user is not False:
             content: dict[str, str] = json.loads(request.body)
             messages: dict[str, str] = {}
