@@ -1,5 +1,7 @@
 import json
 from Backend import appKey
+from django.db.models import Avg
+from Backend.models import RateRecipe
 from requests import request as fetch, Response
 
 endpoint: str = "https://api.edamam.com/api/recipes/v2"  # Web API Endpoint
@@ -115,6 +117,8 @@ def serializeRecipeResults(response: Response):
     recipes: list[dict[str]] = []
     for hit in hits:
         recipe = transformRecipe(hit, False)
+        rating = RateRecipe.objects.filter(recipe=recipe["id"]).aggregate(Avg('rating'))["rating__avg"]
+        recipe.update({"rating": rating})
         if recipe is not None:
             recipes.append(recipe)
     return {"results": recipes, "addRecipesLink": addRecipesLink}
