@@ -18,6 +18,7 @@ BAD_REQUEST = 400
 INTERNAL_SERVER_ERROR = 500
 
 RECENT_LIMIT = 5
+Most_RATED_LIMIT = 5
 
 # Create your views here.
 def checkLogin(request: HttpRequest) -> JsonResponse:
@@ -39,11 +40,13 @@ def page(request: HttpRequest):
     """
     return render(request, "pages/index.html")
 
+
 def recipePage(request: HttpRequest, id: str):
     """
     Loads the recipe info page
     """
     return render(request, "pages/index.html")
+
 
 def signUp(request: HttpRequest) -> JsonResponse:
     """
@@ -106,17 +109,20 @@ def login(request: HttpRequest) -> JsonResponse:
 
         if user is not None:
             auth.login(request, user)
-            user: User = fetch_object_or_404(
-                User, username=user.get_username()
-            )
+            user: User = fetch_object_or_404(User, username=user.get_username())
             return JsonResponse({"loginSuccess": True, "user": user.to_dict()})
-        response = JsonResponse({"loginSuccess": False, "message": "Account doesn't Exist"})
+        response = JsonResponse(
+            {"loginSuccess": False, "message": "Account doesn't Exist"}
+        )
         response.status_code = INTERNAL_SERVER_ERROR
 
         return response
     else:
         response = JsonResponse(
-            {"loginSuccess": False, "message": "Invalid HTTP method or missing fields to create account"}
+            {
+                "loginSuccess": False,
+                "message": "Invalid HTTP method or missing fields to create account",
+            }
         )
         response.status_code = BAD_REQUEST
         return response
@@ -134,7 +140,7 @@ def getRecipes(request: HttpRequest):
     ingredients = ""
     if "ingredients" in request.GET:
         ingredients = request.GET["ingredients"]
-    
+
     options: dict[str] = {}
     exclusions: list[str] = []
     for option in request.GET.keys():
@@ -190,7 +196,7 @@ def setRecentRecipe(request: HttpRequest):
     Adds or updates a recent recipe that the user has viewed.
     """
     if request.method == "POST":
-        content: dict[str,str] = json.loads(request.body)
+        content: dict[str, str] = json.loads(request.body)
         try:
             recipe = Recipe.objects.get(uri=content["id"])
             recipe.save()
@@ -202,9 +208,11 @@ def setRecentRecipe(request: HttpRequest):
             user = User.objects.get(pk=request.user.pk)
 
             # Gets recent recipes in most recent order from first to last
-            recentRecipes = RecentRecipe.objects.filter().order_by('-date')
+            recentRecipes = RecentRecipe.objects.filter().order_by("-date")
             if len(recentRecipes) > RECENT_LIMIT:
-                recentRecipes[len(recentRecipes)-1].delete() # Deletes the least recent recipe
+                recentRecipes[
+                    len(recentRecipes) - 1
+                ].delete()  # Deletes the least recent recipe
 
             try:
                 recentRecipe = RecentRecipe.objects.get(recipe=recipe, user=user)
@@ -229,14 +237,31 @@ def getRecentRecipes(request: HttpRequest):
     """
     if request.method == "GET":
         recentRecipes: list[dict[str]] = []
-        results = RecentRecipe.objects.filter(user=request.user.pk).order_by('-date')
+        results = RecentRecipe.objects.filter(user=request.user.pk).order_by("-date")
 
         for recentRecipe in results:
             recentRecipes.append(recentRecipe.to_dict(True))
-        
+
         return JsonResponse({"results": recentRecipes})
 
+    response = JsonResponse({"message": "Invalid HTTP method"})
+    response.status_code = BAD_REQUEST
+    return response
 
+
+@login_required
+def getMostRatedRecipes(request: HttpRequest):
+    """
+    Gets the most rated recipes from user
+    """
+    if request.method == "GET":
+        results = [
+            ratedRecipe.recipe.to_dict(False)
+            for ratedRecipe in RateRecipe.objects.filter(user=request.user.pk).order_by(
+                "-rating"
+            )[:Most_RATED_LIMIT]
+        ]
+        return JsonResponse({"results": results})
     response = JsonResponse({"message": "Invalid HTTP method"})
     response.status_code = BAD_REQUEST
     return response
@@ -250,27 +275,30 @@ def getRecipe(request: HttpRequest):
         recipe = {"minRating": MIN_RATING, "maxRating": MAX_RATING}
         try:
             recipe.update(Recipe.objects.get(uri=request.GET["id"]).to_dict(True))
-        except(Recipe.DoesNotExist):
+        except (Recipe.DoesNotExist):
             recipe.update(FetchFood.fetchRecipe(request.GET["id"]))
-        
+
         try:
-            userRating = RateRecipe.objects.get(recipe=request.GET["id"], user=request.user.pk).rating
+            userRating = RateRecipe.objects.get(
+                recipe=request.GET["id"], user=request.user.pk
+            ).rating
             recipe.update({"userRating": userRating})
         except (RateRecipe.DoesNotExist):
             recipe.update({"userRating": 0})
 
         return JsonResponse(recipe)
-    
+
     response = JsonResponse({"message": "Invald HTTP method or query missing ID"})
     response.status_code = BAD_REQUEST
     return response
+
 
 @login_required
 def setRating(request: HttpRequest):
     """
     Sets the rating of a recipe
     """
-    content: dict[str,int | str] = json.loads(request.body)
+    content: dict[str, int | str] = json.loads(request.body)
     if request.method == "PUT" and "id" in content and "rating" in content:
         try:
             recipe = Recipe.objects.get(uri=content["id"])
@@ -278,7 +306,7 @@ def setRating(request: HttpRequest):
             response = JsonResponse({"message": "ID doesn't match with a recipe"})
             response.status_code = 404
             return response
-        
+
         user = User.objects.get(pk=request.user.pk)
 
         try:
@@ -288,7 +316,7 @@ def setRating(request: HttpRequest):
             rateRecipe = RateRecipe(recipe=recipe, user=user, rating=content["rating"])
 
         rateRecipe.save()
-        
+
         return HttpResponse()
 
     response = JsonResponse({"message": "Invald HTTP method or query missing ID"})
@@ -325,7 +353,7 @@ def updateUserInfo(request: HttpRequest):
                 user.email = content["email"]
                 messages["emailMsg"] = "Updated Email"
                 user.save()
-            
+
             if "password" in content:
                 user.set_password(content["password"])
                 messages["passwordMsg"] = "Updated Password"
@@ -333,7 +361,7 @@ def updateUserInfo(request: HttpRequest):
                 auth.update_session_auth_hash(request, user)
 
             return JsonResponse(messages)
-    
+
     response = JsonResponse({"message": "Invalid operation or user doesn't exist"})
     response.status_code = BAD_REQUEST
     return response

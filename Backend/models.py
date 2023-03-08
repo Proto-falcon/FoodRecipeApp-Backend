@@ -256,18 +256,18 @@ class RecentRecipe(models.Model):
         return recipe
 
 
-class FavRecipe(models.Model):
-    """
-    Represents recipes favourited by the user from the Edamam food recipes database
-    """
-    user = models.ForeignKey(User, on_delete=models.CASCADE)
-    recipe = models.ForeignKey(Recipe, on_delete=models.CASCADE)
-    date = models.DateTimeField(auto_now=True)
+# class FavRecipe(models.Model):
+#     """
+#     Represents recipes favourited by the user from the Edamam food recipes database
+#     """
+#     user = models.ForeignKey(User, on_delete=models.CASCADE)
+#     recipe = models.ForeignKey(Recipe, on_delete=models.CASCADE)
+#     date = models.DateTimeField(auto_now=True)
 
-    def __str__(self) -> str:
-        return f"{self.recipe}, By: {self.user}"
+#     def __str__(self) -> str:
+#         return f"{self.recipe}, By: {self.user}"
 
-    def to_dict(self, fullInfo: bool):
-        recipe = self.recipe.to_dict(fullInfo)
-        recipe.update({"user": self.user.username, "date": self.date})
-        return recipe
+#     def to_dict(self, fullInfo: bool):
+#         recipe = self.recipe.to_dict(fullInfo)
+#         recipe.update({"user": self.user.username, "date": self.date})
+#         return recipe

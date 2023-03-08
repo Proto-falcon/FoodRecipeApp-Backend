@@ -1,3 +1,4 @@
+from django.db.transaction import atomic
 from django.shortcuts import get_object_or_404
 from django.http import Http404
 from django.core.files.images import ImageFile
@@ -18,7 +19,7 @@ def fetch_object_or_404(model, **credentials):
     except (Http404):
         return False
 
-
+@atomic
 def createFullRecipe(id: str, fullRecipe: dict[str]):
     """
     Stores all the relevant recipe information across tables

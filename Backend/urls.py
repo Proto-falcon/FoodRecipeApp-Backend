@@ -25,6 +25,8 @@ apipatterns = [
     path("updateUserInfo/", views.updateUserInfo, name="updateUserInfo"),
     # Get Recent Recipes from the requested user
     path("getRecentRecipes/", views.getRecentRecipes, name="getRecentRecipes"),
+    # Get most rated recipes
+    path("getMostRatedRecipes/", views.getMostRatedRecipes, name="getMostRatedRecipes"),
     # Sets the recently viewed recipe for the logged in user
     path("setRecentRecipe/", views.setRecentRecipe, name="setRecentRecipe"),
     # Get a single recipe
