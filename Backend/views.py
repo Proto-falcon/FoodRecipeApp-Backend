@@ -1,15 +1,15 @@
-from django.http import HttpRequest, JsonResponse, HttpResponse
-from Backend import FetchFood
-from Backend.utilities import fetch_object_or_404, createFullRecipe
-from cryptography.fernet import Fernet
-from requests import request as fetch
 import json
-from Backend.models import *
+from requests import request as fetch
+from cryptography.fernet import Fernet
+from django.http import HttpRequest, JsonResponse, HttpResponse
 from django.contrib import auth
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import get_object_or_404, render
 from django.middleware.csrf import get_token
 from django.http import Http404
+from Backend.utilities import fetch_object_or_404, createOrGetFullRecipe
+from Backend import FetchFood
+from Backend.models import User, Recipe, RateRecipe, RecentRecipe, MIN_RATING, MAX_RATING
 
 key = Fernet.generate_key()
 fernet = Fernet(key)
@@ -202,7 +202,7 @@ def setRecentRecipe(request: HttpRequest):
             recipe.save()
         except (Recipe.DoesNotExist):
             fullRecipe = FetchFood.fetchRecipe(content["id"])
-            recipe = createFullRecipe(content["id"], fullRecipe)
+            recipe = createOrGetFullRecipe(content["id"], fullRecipe)
 
         try:
             user = User.objects.get(pk=request.user.pk)
@@ -214,11 +214,7 @@ def setRecentRecipe(request: HttpRequest):
                     len(recentRecipes) - 1
                 ].delete()  # Deletes the least recent recipe
 
-            try:
-                recentRecipe = RecentRecipe.objects.get(recipe=recipe, user=user)
-            except (RecentRecipe.DoesNotExist):
-                recentRecipe = RecentRecipe(recipe=recipe, user=user)
-
+            recentRecipe = RecentRecipe.objects.get_or_create(recipe=recipe, user=user)[0]
             recentRecipe.save()
 
             return HttpResponse()
@@ -320,7 +316,6 @@ def setRating(request: HttpRequest):
         return HttpResponse()
 
     response = JsonResponse({"message": "Invald HTTP method or query missing ID"})
-    print(1)
     response.status_code = BAD_REQUEST
     return response
 

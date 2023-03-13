@@ -7,6 +7,7 @@ from io import BytesIO
 
 from Backend.models import *
 
+
 def fetch_object_or_404(model, **credentials):
     """
     Wrapper arround the django get_object_or_404 only used for authenticated user's
@@ -19,72 +20,72 @@ def fetch_object_or_404(model, **credentials):
     except (Http404):
         return False
 
+
 @atomic
-def createFullRecipe(id: str, fullRecipe: dict[str]):
+def createOrGetFullRecipe(id: str, fullRecipe: dict[str]):
     """
-    Stores all the relevant recipe information across tables
+    Stores all the relevant recipe information across models.\n
+    Also returns the recipe if it already exists and doesn't reinitialize
+    other information.
     """
-    # Creates the recipe object
+    # Gets the recipe image
     response = fetch("GET", fullRecipe["image"])
 
     # Get images via python requests module instead Django's UploadedFile object in requests passed to the view functions
-    with BytesIO(response.content) as bytesImage, ImageFile(bytesImage, f"{fullRecipe['name']}.jpg") as imageFile:
-        recipe = Recipe(
+    with ImageFile(BytesIO(response.content), f"{fullRecipe['name']}.jpg") as imageFile:
+        cautions: list[str] = []
+        if len(fullRecipe["cautions"]) > 0:
+            cautions = fullRecipe["cautions"]
+        
+        recipe, isCreated = Recipe.objects.get_or_create(
             uri=id,
             name=fullRecipe["name"],
-            image= imageFile,
-            source=fullRecipe["source"]
+            image=imageFile,
+            source=fullRecipe["source"],
+            cautions={"list": cautions},
+            diets={"list": fullRecipe["diets"]},
+            healths={"list": fullRecipe["healths"]},
+            cuisineTypes={"list": fullRecipe["cuisineTypes"]},
+            mealTypes={"list": fullRecipe["mealTypes"]},
+            dishTypes={"list": fullRecipe["dishTypes"]},
+            ingredientTexts={"list": fullRecipe["ingredients"]},
         )
-        # recipe.image.save(f"{recipe.name}.jpg", imageFile, True)
-        recipe.save()
 
-    # Creates Diet objects for recipe object
-    for diet in fullRecipe["diets"]:
-        Diet(recipe=recipe, label=diet).save()
-
-    # Creates Health objects for recipe object
-    for health in fullRecipe["healths"]:
-        Health(recipe=recipe, label=health).save()
-
-    # Creates CuisineType object for recipe object
-    for cuisine in fullRecipe["cuisineTypes"]:
-        CuisineType(recipe=recipe, label=cuisine).save()
-            
-    # Creates MealType objects for recipe object
-    for mealType in fullRecipe["mealTypes"]:
-        MealType(recipe=recipe, label=mealType).save()
-
-    # Creates DishType objects for recipe object
-    for dishType in fullRecipe["dishTypes"]:
-        DishType(recipe=recipe, label=dishType).save()
+    # return imediately if recipe already exists in the database
+    if not isCreated:
+        return recipe
+    
+    recipe.save()
 
     # Creates Ingredient objects for the recipe object
-    for ingredient in fullRecipe["ingredients"]:
-        ingrText = IngredientText(text=ingredient, recipe=recipe)
-        ingrText.save()
-        for fullIngr in fullRecipe["fullIngredients"]:
-            if ingredient == fullIngr["text"]:
-                Ingredient(
-                    text=ingrText,
-                    name=fullIngr["food"] if fullIngr["food"] is not None else "",
-                    quantity=fullIngr["quantity"] if fullIngr["quantity"] is not None else 0,
-                    measure=fullIngr["measure"] if fullIngr["measure"] is not None else "",
-                    category=fullIngr["foodCategory"] if fullIngr["foodCategory"] is not None else ""
-                ).save()
-
-    # Creates Caution objects for the recipe object
-    cautions: list[str] = fullRecipe["cautions"]
-    if len(cautions) > 0:
-        for caution in cautions:
-            Caution(name=caution, recipe=recipe).save()
+    Ingredient.objects.bulk_create(
+        [
+            Ingredient(
+                recipe=recipe,
+                name=fullIngr["food"] if fullIngr["food"] is not None else "",
+                quantity=fullIngr["quantity"]
+                if fullIngr["quantity"] is not None
+                else 0,
+                measure=fullIngr["measure"] if fullIngr["measure"] is not None else "",
+                category=fullIngr["foodCategory"]
+                if fullIngr["foodCategory"] is not None
+                else "",
+            )
+            for fullIngr in fullRecipe["fullIngredients"]
+        ]
+    )
 
     # Creates Nutrient objects for the recipe object
-    for nutrient in fullRecipe["nutrients"]:
-        Nutrient(
-            recipe=recipe,
-            label=nutrient["label"],
-            quantity=nutrient["quantity"],
-            unit=nutrient["unit"]if nutrient["unit"] is not None else ""
-        ).save()
-    
+    Nutrient.objects.bulk_create(
+        [
+            Nutrient(
+                recipe=recipe,
+                label=nutrient["label"],
+                quantity=nutrient["quantity"],
+                unit=nutrient["unit"] if nutrient["unit"] is not None else "",
+            )
+            for nutrient in fullRecipe["nutrients"]
+        ]
+    )
+
     return recipe

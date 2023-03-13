@@ -28,13 +28,11 @@ def fetchfood(
             if len(query) > 0 and len(value) > 0:
                 query += "&"
             if type(value).__name__ == "list":
-                i = 0
-                for option in value:
+                for i, option in enumerate(value):
                     option = option.split("/")[0]
                     query += f"{optionName}={option}"
                     if i < len(value) - 1:
                         query += "&"
-                    i += 1
             else:
                 query += f"{optionName}={value}"
 
