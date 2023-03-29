@@ -1,5 +1,6 @@
 __pycache__/
 db.sqlite3
 appKey.py
+InitialDatabase/
 Backend/migrations/*[0-9]_*.py
 media/images/recipes/*.jpg

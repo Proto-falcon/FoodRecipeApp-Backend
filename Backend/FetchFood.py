@@ -1,7 +1,7 @@
 import json
 from Backend import appKey
 from django.db.models import Avg
-from Backend.models import RateRecipe
+from Backend.models import RateRecipe, Recipe
 from requests import request as fetch, Response
 
 endpoint: str = "https://api.edamam.com/api/recipes/v2"  # Web API Endpoint
@@ -9,7 +9,8 @@ endpoint: str = "https://api.edamam.com/api/recipes/v2"  # Web API Endpoint
 def fetchfood(
     ingredients: str = "",
     options: dict[str, list[str] | str] = {},
-    exclusions: list[str] = {}
+    exclusions: list[str] = {},
+    fullInfo: bool = False
 ):
     """
     Fetches food recipes using edaman web api then returns them
@@ -49,7 +50,7 @@ def fetchfood(
     # Sends the request to the food API
     fullURL = f"{endpoint}?type=public&{query}&{appKey.credentials}"
     response: Response = fetch("GET", fullURL)
-    results = serializeRecipeResults(response)
+    results = serializeRecipeResults(response, fullInfo)
     return results
 
 
@@ -96,7 +97,7 @@ def transformRecipe(recipeRaw: dict[str], fullInfo: bool):
                 "source": recipeRaw["recipe"]["url"],
             }
 
-def serializeRecipeResults(response: Response):
+def serializeRecipeResults(response: Response, fullInfo: bool = False):
     """
     Converts the recipe result from edaman web api to a dictionary
     that contains a link to more recipes and an array of recipe objects.
@@ -114,8 +115,12 @@ def serializeRecipeResults(response: Response):
 
     recipes: list[dict[str]] = []
     for hit in hits:
-        recipe = transformRecipe(hit, False)
-        rating = RateRecipe.objects.filter(recipe=recipe["id"]).aggregate(Avg('rating'))["rating__avg"]
+        recipe = transformRecipe(hit, fullInfo)
+        try:
+            recipeID = Recipe.objects.get(uri=recipe["id"]).pk
+            rating = RateRecipe.objects.filter(recipe=recipeID).aggregate(Avg('rating'))["rating__avg"]
+        except Recipe.DoesNotExist:
+            rating = "0.0"
         recipe.update({"rating": rating})
         if recipe is not None:
             recipes.append(recipe)

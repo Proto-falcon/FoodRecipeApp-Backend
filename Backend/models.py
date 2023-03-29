@@ -7,20 +7,19 @@ from django.core.validators import MinValueValidator, MaxValueValidator
 MIN_FLOAT = 0
 MAX_RATING = 5
 MIN_RATING = 1
-
+MAX_POS_INT_FIELD = 9223372036854775807
 
 class User(AbstractUser):
     """
     Our User models is a sub-class of Django's AbstractUser
     So we can make use of Django's authentication system
     """
-
     username = models.CharField(max_length=50, unique=True)
     email = models.EmailField(unique=True)
 
     USERNAME_FIELD = "username"
     REQUIRED_FIELDS = ["email"]
-
+    
     def __str__(self):
         return f"{self.username}, {self.email}"
 
@@ -38,10 +37,10 @@ class Recipe(models.Model):
     Lists are stored as dictionaries with a `list` key that points to the list
     """
 
-    uri = models.CharField(max_length=2000, unique=True, primary_key=True)
-    name = models.CharField(max_length=200)
-    image = models.ImageField(upload_to='images/recipes')
-    source = models.URLField(max_length=2000)
+    uri = models.CharField(max_length=2000, unique=True)
+    name = models.CharField(max_length=200, default="")
+    image = models.ImageField(upload_to='images/recipes', default="")
+    source = models.URLField(max_length=2000, default="")
 
     cautions = models.JSONField(default=dict)
     diets = models.JSONField(default=dict)
@@ -51,11 +50,18 @@ class Recipe(models.Model):
     dishTypes = models.JSONField(default=dict)
     ingredientTexts = models.JSONField(default=dict)
 
-    REQUIRED_FIELDS = ["uri"]
-
     def __str__(self) -> str:
         return f"ID: {self.uri}, Name:{self.name}"
-        
+    
+    def isFullRecipe(self):
+        """
+        Checks if the recipe object only has uri and name
+        by only checking if the uri is only digits.
+        `True` for only uri and name otherwise `False`.
+        """
+        return self.uri.isdigit()
+
+
     def to_dict(self, fullInfo: bool):
         info = {
                 "id": self.uri,
@@ -63,7 +69,7 @@ class Recipe(models.Model):
                 "image": self.image.url if self.image else None,
                 "source": self.source,
                 "ingredients": self.ingredientTexts["list"],
-                "rating": RateRecipe.objects.filter(recipe=self.uri).aggregate(models.Avg('rating'))["rating__avg"]
+                "rating": RateRecipe.objects.filter(recipe=self.pk).aggregate(models.Avg('rating'))["rating__avg"]
             }
         
         if fullInfo:
@@ -76,7 +82,7 @@ class Recipe(models.Model):
                 "dishTypes": self.dishTypes["list"],
                 "nutrients": [
                     nutrient.to_dict()
-                    for nutrient in Nutrient.objects.filter(recipe=self.uri)
+                    for nutrient in Nutrient.objects.filter(recipe=self.pk)
                 ]
             })
         

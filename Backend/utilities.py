@@ -40,21 +40,30 @@ def createOrGetFullRecipe(id: str, fullRecipe: dict[str]):
         recipe, isCreated = Recipe.objects.get_or_create(
             uri=id,
             name=fullRecipe["name"],
-            image=imageFile,
+            # image=imageFile,
             source=fullRecipe["source"],
-            cautions={"list": cautions},
-            diets={"list": fullRecipe["diets"]},
-            healths={"list": fullRecipe["healths"]},
-            cuisineTypes={"list": fullRecipe["cuisineTypes"]},
-            mealTypes={"list": fullRecipe["mealTypes"]},
-            dishTypes={"list": fullRecipe["dishTypes"]},
-            ingredientTexts={"list": fullRecipe["ingredients"]},
+            # cautions={"list": cautions},
+            # diets={"list": fullRecipe["diets"]},
+            # healths={"list": fullRecipe["healths"]},
+            # cuisineTypes={"list": fullRecipe["cuisineTypes"]},
+            # mealTypes={"list": fullRecipe["mealTypes"]},
+            # dishTypes={"list": fullRecipe["dishTypes"]},
+            # ingredientTexts={"list": fullRecipe["ingredients"]},
         )
 
-    # return imediately if recipe already exists in the database
-    if not isCreated:
-        return recipe
-    
+        # return imediately if recipe already exists in the database
+        if not isCreated:
+            return recipe
+        
+        recipe.cautions={"list": cautions}
+        recipe.diets={"list": fullRecipe["diets"]}
+        recipe.healths={"list": fullRecipe["healths"]}
+        recipe.cuisineTypes={"list": fullRecipe["cuisineTypes"]}
+        recipe.mealTypes={"list": fullRecipe["mealTypes"]}
+        recipe.dishTypes={"list": fullRecipe["dishTypes"]}
+        recipe.ingredientTexts={"list": fullRecipe["ingredients"]}
+        recipe.image.save(imageFile)
+
     recipe.save()
 
     # Creates Ingredient objects for the recipe object

@@ -151,7 +151,7 @@ def getRecipes(request: HttpRequest):
                 options[option] = request.GET.getlist(option)
 
     if len(ingredients) > 0 or len(options) > 0 or len(exclusions):
-        results = FetchFood.fetchfood(ingredients, options, exclusions)
+        results = FetchFood.fetchfood(ingredients, options, exclusions, False)
         try:
             if results["addRecipesLink"] is not None:
                 results["addRecipesLink"] = fernet.encrypt(
@@ -288,6 +288,19 @@ def getRecipe(request: HttpRequest):
     response.status_code = BAD_REQUEST
     return response
 
+
+def convertToFullRecipe(request: HttpRequest):
+    if "uri" in request.GET:
+        recipe = Recipe.objects.get(uri=request.GET["uri"])
+        if recipe.isFullRecipe():
+            recipeResult: dict[str] = FetchFood.fetchfood(recipe.name, fullInfo=True)["results"][0]
+            recipeCreated: Recipe = createOrGetFullRecipe(recipeResult["id"], recipeResult)
+            return JsonResponse(recipeCreated.to_dict(True))
+        else:
+            return JsonResponse({"message": "Not a test recipe!"})
+    response = JsonResponse({"message": "Invald HTTP method or query missing uri"})
+    response.status_code = BAD_REQUEST
+    return response
 
 @login_required
 def setRating(request: HttpRequest):
