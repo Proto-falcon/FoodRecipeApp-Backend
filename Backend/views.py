@@ -7,7 +7,7 @@ from django.contrib.auth.decorators import login_required
 from django.shortcuts import get_object_or_404, render
 from django.middleware.csrf import get_token
 from django.http import Http404
-from Backend.utilities import fetch_object_or_404, createOrGetFullRecipe
+from Backend.utilities import fetch_object_or_404, createOrGetFullRecipe, makeFullRecipe
 from Backend import FetchFood
 from Backend.models import User, Recipe, RateRecipe, RecentRecipe, MIN_RATING, MAX_RATING
 
@@ -19,6 +19,20 @@ INTERNAL_SERVER_ERROR = 500
 
 RECENT_LIMIT = 5
 Most_RATED_LIMIT = 5
+
+def nextRecipes(url: str):
+    response: JsonResponse = fetch("GET", url)
+    results = FetchFood.serializeRecipeResults(response)
+    try:
+        if results["addRecipesLink"] is not None:
+            results["addRecipesLink"] = fernet.encrypt(
+                results["addRecipesLink"].encode()
+            ).decode()
+        else:
+            results.pop("addRecipesLink")
+    except (KeyError):
+        return results
+    return results
 
 # Create your views here.
 def checkLogin(request: HttpRequest) -> JsonResponse:
@@ -174,18 +188,7 @@ def addRecipes(request: HttpRequest) -> JsonResponse:
     """
     if "nextLink" in request.GET and request.GET["nextLink"] != "undefined":
         url = fernet.decrypt(request.GET["nextLink"].encode(), 31557600)
-        response: JsonResponse = fetch("GET", url)
-        results = FetchFood.serializeRecipeResults(response)
-        try:
-            if results["addRecipesLink"] is not None:
-                results["addRecipesLink"] = fernet.encrypt(
-                    results["addRecipesLink"].encode()
-                ).decode()
-            else:
-                results.pop("addRecipesLink")
-        except (KeyError):
-            return JsonResponse(results)
-        return JsonResponse(results)
+        return JsonResponse(nextRecipes(url))
     response = JsonResponse({"message": "invalid URL"})
     response.status_code = BAD_REQUEST
     return response
@@ -270,15 +273,19 @@ def getRecipe(request: HttpRequest):
     if request.method == "GET" and "id" in request.GET:
         recipe = {"minRating": MIN_RATING, "maxRating": MAX_RATING}
         try:
-            recipe.update(Recipe.objects.get(uri=request.GET["id"]).to_dict(True))
+            recipeObj = Recipe.objects.get(uri=request.GET["id"])
+            recipe.update(recipeObj.to_dict(True))
         except (Recipe.DoesNotExist):
             recipe.update(FetchFood.fetchRecipe(request.GET["id"]))
+            recipeObj = None
 
         try:
-            userRating = RateRecipe.objects.get(
-                recipe=request.GET["id"], user=request.user.pk
-            ).rating
-            recipe.update({"userRating": userRating})
+            if recipeObj is not None:
+                userRating = RateRecipe.objects.get(
+                    recipe=recipeObj, user=request.user.pk
+                ).rating
+                recipe.update({"userRating": userRating})
+            raise RateRecipe.DoesNotExist()
         except (RateRecipe.DoesNotExist):
             recipe.update({"userRating": 0})
 
@@ -291,10 +298,28 @@ def getRecipe(request: HttpRequest):
 
 def convertToFullRecipe(request: HttpRequest):
     if "uri" in request.GET:
-        recipe = Recipe.objects.get(uri=request.GET["uri"])
+        try:
+            recipe = Recipe.objects.get(uri=request.GET["uri"])
+        except (Recipe.DoesNotExist):
+            return JsonResponse({"message": "This recipe either doesn't exist or is already converted to a full recipe."})
         if recipe.isFullRecipe():
-            recipeResult: dict[str] = FetchFood.fetchfood(recipe.name, fullInfo=True)["results"][0]
-            recipeCreated: Recipe = createOrGetFullRecipe(recipeResult["id"], recipeResult)
+            recipeResults: list[dict[str]] = []
+            recipeName = recipe.name
+            limit = 5
+            while len(recipeResults) <= 0 and limit > 0:
+                recipeResults = FetchFood.fetchfood(recipeName, fullInfo=True)["results"]
+                recipeName = recipeName.split(" ")[1:]
+                if len(recipeName) > 0:
+                    newName = ""
+                    for word in recipeName:
+                        newName += f"{word} "
+                    recipeName = newName
+                
+                limit -= 1
+
+            recipeResult: dict[str] = recipeResults[0]
+            recipeResult.update({"name": recipe.name, "image":recipe.imageUrl})
+            recipeCreated: Recipe = makeFullRecipe(recipeResult["id"], recipe, recipeResult)
             return JsonResponse(recipeCreated.to_dict(True))
         else:
             return JsonResponse({"message": "Not a test recipe!"})

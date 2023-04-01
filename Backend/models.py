@@ -39,6 +39,7 @@ class Recipe(models.Model):
 
     uri = models.CharField(max_length=2000, unique=True)
     name = models.CharField(max_length=200, default="")
+    imageUrl = models.URLField(max_length=2000, default="")
     image = models.ImageField(upload_to='images/recipes', default="")
     source = models.URLField(max_length=2000, default="")
 
@@ -51,7 +52,7 @@ class Recipe(models.Model):
     ingredientTexts = models.JSONField(default=dict)
 
     def __str__(self) -> str:
-        return f"ID: {self.uri}, Name:{self.name}"
+        return f"ID: {self.uri}, Name: {self.name}"
     
     def isFullRecipe(self):
         """
@@ -63,17 +64,25 @@ class Recipe(models.Model):
 
 
     def to_dict(self, fullInfo: bool):
+        image = self.image
+        if image:
+            image = image.url
+        elif len(self.imageUrl) > 0:
+            image = self.imageUrl
+        else:
+            image = ""
+        
         info = {
                 "id": self.uri,
                 "name": self.name,
-                "image": self.image.url if self.image else None,
-                "source": self.source,
-                "ingredients": self.ingredientTexts["list"],
+                "image": image,
                 "rating": RateRecipe.objects.filter(recipe=self.pk).aggregate(models.Avg('rating'))["rating__avg"]
             }
         
         if fullInfo:
             info.update({
+                "source": self.source,
+                "ingredients": self.ingredientTexts["list"],
                 "cautions": self.cautions["list"],
                 "diets": self.diets["list"],
                 "healths": self.healths["list"],
