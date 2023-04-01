@@ -103,7 +103,10 @@ def serializeRecipeResults(response: Response, fullInfo: bool = False):
     that contains a link to more recipes and an array of recipe objects.
     """
     content: dict[str] = json.loads(response.content)
-    hits: list[dict[str]] = content["hits"]
+    try:
+        hits: list[dict[str]] = content["hits"]
+    except (KeyError):
+        return {"message": "Unavaialbe recipes due to API Error"}
 
     if len(hits) <= 0:
         return {"results": [], "addRecipesLink": None}

@@ -54,7 +54,7 @@ class Recipe(models.Model):
     def __str__(self) -> str:
         return f"ID: {self.uri}, Name: {self.name}"
     
-    def isFullRecipe(self):
+    def isNotFullRecipe(self):
         """
         Checks if the recipe object only has uri and name
         by only checking if the uri is only digits.
@@ -63,7 +63,7 @@ class Recipe(models.Model):
         return self.uri.isdigit()
 
 
-    def to_dict(self, fullInfo: bool):
+    def to_dict(self, fullInfo: bool=False):
         image = self.image
         if image:
             image = image.url

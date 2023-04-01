@@ -7,7 +7,11 @@ from django.contrib.auth.decorators import login_required
 from django.shortcuts import get_object_or_404, render
 from django.middleware.csrf import get_token
 from django.http import Http404
-from Backend.utilities import fetch_object_or_404, createOrGetFullRecipe, makeFullRecipe
+from Backend.utilities import incorrectRequest
+from Backend.utilities import fetch_object_or_404
+from Backend.utilities import createOrGetFullRecipe
+from Backend.utilities import makeFullRecipe
+from Backend.utilities import convertToFullRecipe as makeCompleteRecipe
 from Backend import FetchFood
 from Backend.models import User, Recipe, RateRecipe, RecentRecipe, MIN_RATING, MAX_RATING
 
@@ -15,6 +19,7 @@ key = Fernet.generate_key()
 fernet = Fernet(key)
 
 BAD_REQUEST = 400
+NOT_FOUND = 404
 INTERNAL_SERVER_ERROR = 500
 
 RECENT_LIMIT = 5
@@ -43,9 +48,7 @@ def checkLogin(request: HttpRequest) -> JsonResponse:
         except (Http404):
             return JsonResponse({"token": get_token(request), "user": False})
     else:
-        response = JsonResponse({"message": "Invalid http method"})
-        response.status_code = BAD_REQUEST
-        return response
+        return incorrectRequest("Invalid http method", BAD_REQUEST)
 
 
 def page(request: HttpRequest):
@@ -96,18 +99,9 @@ def signUp(request: HttpRequest) -> JsonResponse:
                 auth.login(request, user)
                 return JsonResponse({"signUpSuccess": True})
 
-            response = JsonResponse(
-                {"signUpSuccess": False, "message": "Authentication failed"}
-            )
-            response.status_code = INTERNAL_SERVER_ERROR
-
-            return response
+            return incorrectRequest("Authentication failed", INTERNAL_SERVER_ERROR, signUpSuccess=False)
     else:
-        response = JsonResponse(
-            {"message": "Invalid HTTP method or missing fields to create account"}
-        )
-        response.status_code = BAD_REQUEST
-        return response
+        return incorrectRequest("Invalid HTTP method or missing fields to create account", BAD_REQUEST)
 
 
 def login(request: HttpRequest) -> JsonResponse:
@@ -125,21 +119,10 @@ def login(request: HttpRequest) -> JsonResponse:
             auth.login(request, user)
             user: User = fetch_object_or_404(User, username=user.get_username())
             return JsonResponse({"loginSuccess": True, "user": user.to_dict()})
-        response = JsonResponse(
-            {"loginSuccess": False, "message": "Account doesn't Exist"}
-        )
-        response.status_code = INTERNAL_SERVER_ERROR
 
-        return response
+        return incorrectRequest("Account doesn't Exist", INTERNAL_SERVER_ERROR, loginSuccess=False)
     else:
-        response = JsonResponse(
-            {
-                "loginSuccess": False,
-                "message": "Invalid HTTP method or missing fields to create account",
-            }
-        )
-        response.status_code = BAD_REQUEST
-        return response
+        return incorrectRequest("Invalid HTTP method or missing fields to create account", BAD_REQUEST, loginSuccess=False)
 
 
 def getRecipes(request: HttpRequest):
@@ -147,9 +130,7 @@ def getRecipes(request: HttpRequest):
     Gives a list of recipes with recipe link via search options.
     """
     if len(request.GET) <= 0:
-        response = JsonResponse({"message": "No ingredients or options given!"})
-        response.status_code = BAD_REQUEST
-        return response
+        return incorrectRequest("No ingredients or options given!", BAD_REQUEST)
 
     ingredients = ""
     if "ingredients" in request.GET:
@@ -177,9 +158,7 @@ def getRecipes(request: HttpRequest):
         except (KeyError):
             return JsonResponse(results)
     else:
-        response = JsonResponse({"message": "No ingredients given!"})
-        response.status_code = BAD_REQUEST
-        return response
+        return incorrectRequest("No ingredients given!", BAD_REQUEST)
 
 
 def addRecipes(request: HttpRequest) -> JsonResponse:
@@ -189,9 +168,8 @@ def addRecipes(request: HttpRequest) -> JsonResponse:
     if "nextLink" in request.GET and request.GET["nextLink"] != "undefined":
         url = fernet.decrypt(request.GET["nextLink"].encode(), 31557600)
         return JsonResponse(nextRecipes(url))
-    response = JsonResponse({"message": "invalid URL"})
-    response.status_code = BAD_REQUEST
-    return response
+
+    return incorrectRequest("invalid URL", BAD_REQUEST)
 
 
 def setRecentRecipe(request: HttpRequest):
@@ -224,9 +202,7 @@ def setRecentRecipe(request: HttpRequest):
         except (User.DoesNotExist):
             return HttpResponse()
 
-    response = JsonResponse({"added": False, "message": "Invaild HTTP request"})
-    response.status_code = BAD_REQUEST
-    return response
+    return incorrectRequest("Invaild HTTP request", BAD_REQUEST, added=False)
 
 
 @login_required
@@ -243,9 +219,7 @@ def getRecentRecipes(request: HttpRequest):
 
         return JsonResponse({"results": recentRecipes})
 
-    response = JsonResponse({"message": "Invalid HTTP method"})
-    response.status_code = BAD_REQUEST
-    return response
+    return incorrectRequest("Invalid HTTP method", BAD_REQUEST)
 
 
 @login_required
@@ -261,9 +235,8 @@ def getMostRatedRecipes(request: HttpRequest):
             )[:Most_RATED_LIMIT]
         ]
         return JsonResponse({"results": results})
-    response = JsonResponse({"message": "Invalid HTTP method"})
-    response.status_code = BAD_REQUEST
-    return response
+
+    return incorrectRequest("Invalid HTTP method", BAD_REQUEST)
 
 
 def getRecipe(request: HttpRequest):
@@ -291,41 +264,35 @@ def getRecipe(request: HttpRequest):
 
         return JsonResponse(recipe)
 
-    response = JsonResponse({"message": "Invald HTTP method or query missing ID"})
-    response.status_code = BAD_REQUEST
-    return response
+    return incorrectRequest("Invald HTTP method or query missing ID", BAD_REQUEST)
 
+def recommendRecipes(request: HttpRequest):
+    """
+    Recommends recipes to the user
+    """
+    if request.method == "GET":
+        recipes = Recipe.objects.all()[:10]
+        
+        return JsonResponse({"results": [recipe.to_dict(False) for recipe in recipes]})
+    return incorrectRequest("Invald HTTP method", BAD_REQUEST)
 
 def convertToFullRecipe(request: HttpRequest):
+    """
+    Converts an incomplete recipe to a full recipe from Edamam web API.
+    """
     if "uri" in request.GET:
         try:
             recipe = Recipe.objects.get(uri=request.GET["uri"])
         except (Recipe.DoesNotExist):
             return JsonResponse({"message": "This recipe either doesn't exist or is already converted to a full recipe."})
-        if recipe.isFullRecipe():
-            recipeResults: list[dict[str]] = []
-            recipeName = recipe.name
-            limit = 5
-            while len(recipeResults) <= 0 and limit > 0:
-                recipeResults = FetchFood.fetchfood(recipeName, fullInfo=True)["results"]
-                recipeName = recipeName.split(" ")[1:]
-                if len(recipeName) > 0:
-                    newName = ""
-                    for word in recipeName:
-                        newName += f"{word} "
-                    recipeName = newName
-                
-                limit -= 1
-
-            recipeResult: dict[str] = recipeResults[0]
-            recipeResult.update({"name": recipe.name, "image":recipe.imageUrl})
+        if recipe.isNotFullRecipe():
+            recipeResult: dict[str] = makeCompleteRecipe(recipe)
             recipeCreated: Recipe = makeFullRecipe(recipeResult["id"], recipe, recipeResult)
             return JsonResponse(recipeCreated.to_dict(True))
         else:
             return JsonResponse({"message": "Not a test recipe!"})
-    response = JsonResponse({"message": "Invald HTTP method or query missing uri"})
-    response.status_code = BAD_REQUEST
-    return response
+
+    return incorrectRequest("Invald HTTP method or query missing uri", BAD_REQUEST)
 
 @login_required
 def setRating(request: HttpRequest):
@@ -337,9 +304,7 @@ def setRating(request: HttpRequest):
         try:
             recipe = Recipe.objects.get(uri=content["id"])
         except (Recipe.DoesNotExist):
-            response = JsonResponse({"message": "ID doesn't match with a recipe"})
-            response.status_code = 404
-            return response
+            return incorrectRequest("ID doesn't match with a recipe", NOT_FOUND)
 
         user = User.objects.get(pk=request.user.pk)
 
@@ -355,7 +320,7 @@ def setRating(request: HttpRequest):
 
     response = JsonResponse({"message": "Invald HTTP method or query missing ID"})
     response.status_code = BAD_REQUEST
-    return response
+    return incorrectRequest("Invald HTTP method or query missing ID", BAD_REQUEST)
 
 
 @login_required
@@ -395,9 +360,7 @@ def updateUserInfo(request: HttpRequest):
 
             return JsonResponse(messages)
 
-    response = JsonResponse({"message": "Invalid operation or user doesn't exist"})
-    response.status_code = BAD_REQUEST
-    return response
+    return incorrectRequest("Invalid operation or user doesn't exist", BAD_REQUEST)
 
 
 @login_required
@@ -409,4 +372,5 @@ def logout(request: HttpRequest) -> JsonResponse:
         auth.logout(request)
         return JsonResponse({"token": get_token(request), "loggedOut": True})
     except (Http404):
-        return JsonResponse({"loggedOut": False, "message": "Failed to logout"})
+        incorrectRequest("Failed to logout", loggedOut=False)
+        return incorrectRequest("Failed to logout", loggedOut=False)

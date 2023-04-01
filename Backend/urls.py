@@ -34,7 +34,9 @@ apipatterns = [
     # Set a rating on a recipe
     path("setRating/",views.setRating, name="setRating"),
     # Testing to convert recipes from recipes.json to ones in edamam api
-    path("testRecipe/", views.convertToFullRecipe, name="testRecipe")
+    path("testRecipe/", views.convertToFullRecipe, name="testRecipe"),
+    # Recommends recipes to the user
+    path("recommend/", views.recommendRecipes, name="recommend")
 ]
 
 urlpatterns = [

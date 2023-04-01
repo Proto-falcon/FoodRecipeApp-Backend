@@ -6,7 +6,7 @@ from django.contrib.auth.admin import UserAdmin
 admin.site.register(User, UserAdmin)
 
 class RecipeAdmin(admin.ModelAdmin):
-    list_display = ("uri", "name", "source")
+    list_display = ("id", "uri", "name", "source")
 
 class RecentRecipeAdmin(admin.ModelAdmin):
     list_display = ("user", "recipe", "date")
