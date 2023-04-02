@@ -14,7 +14,8 @@ def fetchfood(
 ):
     """
     Fetches food recipes using edaman web api then returns them
-    as a dictionary with an array of recipe reults and link to load more recipes
+    as a dictionary with an array of recipe reults and link to load more recipes.\n
+    Will give an error message from the edamam web API.
     """
     query: str = ""
     
@@ -48,7 +49,7 @@ def fetchfood(
                 query += "&"
 
     # Sends the request to the food API
-    fullURL = f"{endpoint}?type=public&{query}&{appKey.credentials}"
+    fullURL = f"{endpoint}?type=any&{query}&{appKey.credentials}"
     response: Response = fetch("GET", fullURL)
     results = serializeRecipeResults(response, fullInfo)
     return results
@@ -58,7 +59,7 @@ def fetchRecipe(id: str):
     """
     Fetches a single recipe via id with all relevant information
     """
-    fullURL = f"{endpoint}/{id}?type=public&{appKey.credentials}"
+    fullURL = f"{endpoint}/{id}?type=any&{appKey.credentials}"
     response: Response = fetch("GET", fullURL)
     content = json.loads(response.content)
     return transformRecipe(content, True)
@@ -106,7 +107,7 @@ def serializeRecipeResults(response: Response, fullInfo: bool = False):
     try:
         hits: list[dict[str]] = content["hits"]
     except (KeyError):
-        return {"message": "Unavaialbe recipes due to API Error"}
+        return {"message": content["message"]}
 
     if len(hits) <= 0:
         return {"results": [], "addRecipesLink": None}

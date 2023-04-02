@@ -11,7 +11,7 @@ from Backend.utilities import incorrectRequest
 from Backend.utilities import fetch_object_or_404
 from Backend.utilities import createOrGetFullRecipe
 from Backend.utilities import makeFullRecipe
-from Backend.utilities import convertToFullRecipe as makeCompleteRecipe
+from Backend.utilities import fetchSimiliarRecipe
 from Backend import FetchFood
 from Backend.models import User, Recipe, RateRecipe, RecentRecipe, MIN_RATING, MAX_RATING
 
@@ -179,7 +179,7 @@ def setRecentRecipe(request: HttpRequest):
     if request.method == "POST":
         content: dict[str, str] = json.loads(request.body)
         try:
-            recipe = Recipe.objects.get(uri=content["id"])
+            recipe = Recipe.objects.get(pk=content["id"])
             recipe.save()
         except (Recipe.DoesNotExist):
             fullRecipe = FetchFood.fetchRecipe(content["id"])
@@ -241,12 +241,21 @@ def getMostRatedRecipes(request: HttpRequest):
 
 def getRecipe(request: HttpRequest):
     """
-    Gives a recipe by its uri
+    Gives a recipe by its database primary key
     """
     if request.method == "GET" and "id" in request.GET:
         recipe = {"minRating": MIN_RATING, "maxRating": MAX_RATING}
         try:
-            recipeObj = Recipe.objects.get(uri=request.GET["id"])
+            recipeObj = Recipe.objects.get(pk=request.GET["id"])
+
+            if recipeObj.isNotFullRecipe():
+                recipeResult = fetchSimiliarRecipe(recipeObj)
+                if "message" not in recipeResult:
+                    # print(recipeResult)
+                    recipeObj = makeFullRecipe(recipeResult["id"], recipeObj, recipeResult)
+                else:
+                    return incorrectRequest(recipeResult["message"], INTERNAL_SERVER_ERROR)
+
             recipe.update(recipeObj.to_dict(True))
         except (Recipe.DoesNotExist):
             recipe.update(FetchFood.fetchRecipe(request.GET["id"]))
@@ -286,7 +295,7 @@ def convertToFullRecipe(request: HttpRequest):
         except (Recipe.DoesNotExist):
             return JsonResponse({"message": "This recipe either doesn't exist or is already converted to a full recipe."})
         if recipe.isNotFullRecipe():
-            recipeResult: dict[str] = makeCompleteRecipe(recipe)
+            recipeResult: dict[str] = fetchSimiliarRecipe(recipe)
             recipeCreated: Recipe = makeFullRecipe(recipeResult["id"], recipe, recipeResult)
             return JsonResponse(recipeCreated.to_dict(True))
         else:
@@ -302,7 +311,7 @@ def setRating(request: HttpRequest):
     content: dict[str, int | str] = json.loads(request.body)
     if request.method == "PUT" and "id" in content and "rating" in content:
         try:
-            recipe = Recipe.objects.get(uri=content["id"])
+            recipe = Recipe.objects.get(pk=content["id"])
         except (Recipe.DoesNotExist):
             return incorrectRequest("ID doesn't match with a recipe", NOT_FOUND)
 

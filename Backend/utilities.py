@@ -1,39 +1,99 @@
+from io import BytesIO
+from random import choice
+from requests import request as fetch
 from django.db.transaction import atomic
 from django.shortcuts import get_object_or_404
 from django.http import Http404, JsonResponse
 from django.core.files.images import ImageFile
-from requests import request as fetch
-from io import BytesIO
 from Backend.FetchFood import fetchfood
 from Backend.models import Recipe, Ingredient, Nutrient
 
 REQUEST_LIMIT = 7
+MAX_RAND_WORDS = 3
 
-def convertToFullRecipe(recipe: Recipe):
+def removeNonAlpha(notAlpha: str):
+    """
+    Returns a string without any non-alphabetic characters in string.
+    """
+    onlyAlpha = ""
+    for i in range(len(notAlpha)):
+        if notAlpha[i].isalpha():
+            onlyAlpha += notAlpha[i]
+
+    return onlyAlpha
+
+
+def FindRecipeNotInDB(recipes: list[dict[str, str | list | dict[str, str | int]]], recipeName: str, imageUrl: str):
+    """
+    Finds a recipe not already in the database from the list of dictionaries that represent recipes.
+    Returns None
+    """
+    for recipe in recipes:
+        try:
+            Recipe.objects.get(uri=recipe["uri"].split("#recipe_")[-1])
+        except (Recipe.DoesNotExist):
+            recipe.update({"name": recipeName, "image": imageUrl})
+            return recipe
+
+def fetchSimiliarRecipe(recipe: Recipe):
     """
     Gives a recipe dictionary with all relevant information from edamam api
-    about a `similiar` recipe.
+    about a `similiar` recipe.\n
+    Gives an error message from the edamam web API.
     """
     recipeResults: list[dict[str]] = []
     recipeName = recipe.name
-    limit = REQUEST_LIMIT
-    while len(recipeResults) <= 0 and limit > 0:
-        recipeResults = fetchfood(recipeName, fullInfo=True)["results"]
-        recipeName = recipeName.split(" ")[1:]
-        if len(recipeName) > 0:
-            newName = ""
-            for word in recipeName:
-                newName += f"{word} "
-            recipeName = newName
+
+    """
+    First request will be with the exact recipe name.
+    If it has atleast `1` result then use the first result that isn't part of the database.
+    If doesn't have atleast `1` result or can't find any recipes that aren't already part of the database then:
+    Do a generic random search by only using 1 or 2 of the words in the given recipe name (`recipe.name`)
+    Doing random since it's generic there will be lots of recipes and want to get recipes that aren't already part of the database
+    so random result will dramatically reduce the need to do multiple queries.
+    """
+
+    response = fetchfood(recipe.name, fullInfo=True)
+    
+    if "message" not in response:
+        # print(response.keys())
+        results: list[dict[str, str | list | dict[str, str | int]]] = []
+
+        if len(response["results"]) > 0:
+            results = response["results"]
+            newRecipe = FindRecipeNotInDB(results, recipe.name, recipe.imageUrl)
+            if newRecipe is not None:
+                print(3)
+                return newRecipe
         
-        limit -= 1
-
-    if "message" in recipeResults:
-        return recipeResults
-
-    recipeResult: dict[str] = recipeResults[0]
-    recipeResult.update({"name": recipe.name, "image":recipe.imageUrl})
-    return recipeResult
+        limit = REQUEST_LIMIT
+        while limit > 0:
+            if len(response["results"]) <= 0:
+                recipeNameList = recipe.name.split(" ")
+                randName = ""
+                for i in range(len(recipeNameList)):
+                    if i < MAX_RAND_WORDS:
+                        word = choice(recipeNameList)
+                        randName += f"{word} "
+                        while word in recipeNameList:
+                            recipeNameList.remove(word)
+                    else:
+                        break
+            
+            response = fetchfood(randName, fullInfo=True)
+            if "message" in response:
+                print(2)
+                return response
+            
+            newRecipe = FindRecipeNotInDB(results, recipe.name, recipe.imageUrl)
+            if newRecipe is not None:
+                print(1)
+                return newRecipe
+            
+            limit -= 1
+    print(0)
+    # This response has results of recipes which isn't an empty list
+    return response
 
 
 def incorrectRequest(message: str, status_code: int=200, **kwargs):

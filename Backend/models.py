@@ -52,15 +52,15 @@ class Recipe(models.Model):
     ingredientTexts = models.JSONField(default=dict)
 
     def __str__(self) -> str:
-        return f"ID: {self.uri}, Name: {self.name}"
+        return f"ID: {self.pk}, Name: {self.name}"
     
     def isNotFullRecipe(self):
         """
         Checks if the recipe object only has uri and name
-        by only checking if the uri is only digits.
+        by checking if the `uri` is only digits and `source` is empty.
         `True` for only uri and name otherwise `False`.
         """
-        return self.uri.isdigit()
+        return self.uri.isdigit() and len(self.source) <= 0
 
 
     def to_dict(self, fullInfo: bool=False):
@@ -73,7 +73,7 @@ class Recipe(models.Model):
             image = ""
         
         info = {
-                "id": self.uri,
+                "id": self.pk,
                 "name": self.name,
                 "image": image,
                 "rating": RateRecipe.objects.filter(recipe=self.pk).aggregate(models.Avg('rating'))["rating__avg"]
