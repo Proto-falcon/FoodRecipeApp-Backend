@@ -251,7 +251,6 @@ def getRecipe(request: HttpRequest):
             if recipeObj.isNotFullRecipe():
                 recipeResult = fetchSimiliarRecipe(recipeObj)
                 if "message" not in recipeResult:
-                    # print(recipeResult)
                     recipeObj = makeFullRecipe(recipeResult["id"], recipeObj, recipeResult)
                 else:
                     return incorrectRequest(recipeResult["message"], INTERNAL_SERVER_ERROR)
@@ -285,23 +284,23 @@ def recommendRecipes(request: HttpRequest):
         return JsonResponse({"results": [recipe.to_dict(False) for recipe in recipes]})
     return incorrectRequest("Invald HTTP method", BAD_REQUEST)
 
-def convertToFullRecipe(request: HttpRequest):
-    """
-    Converts an incomplete recipe to a full recipe from Edamam web API.
-    """
-    if "uri" in request.GET:
-        try:
-            recipe = Recipe.objects.get(uri=request.GET["uri"])
-        except (Recipe.DoesNotExist):
-            return JsonResponse({"message": "This recipe either doesn't exist or is already converted to a full recipe."})
-        if recipe.isNotFullRecipe():
-            recipeResult: dict[str] = fetchSimiliarRecipe(recipe)
-            recipeCreated: Recipe = makeFullRecipe(recipeResult["id"], recipe, recipeResult)
-            return JsonResponse(recipeCreated.to_dict(True))
-        else:
-            return JsonResponse({"message": "Not a test recipe!"})
+# def convertToFullRecipe(request: HttpRequest):
+#     """
+#     Converts an incomplete recipe to a full recipe from Edamam web API.
+#     """
+#     if "uri" in request.GET:
+#         try:
+#             recipe = Recipe.objects.get(uri=request.GET["uri"])
+#         except (Recipe.DoesNotExist):
+#             return JsonResponse({"message": "This recipe either doesn't exist or is already converted to a full recipe."})
+#         if recipe.isNotFullRecipe():
+#             recipeResult: dict[str] = fetchSimiliarRecipe(recipe)
+#             recipeCreated: Recipe = makeFullRecipe(recipeResult["id"], recipe, recipeResult)
+#             return JsonResponse(recipeCreated.to_dict(True))
+#         else:
+#             return JsonResponse({"message": "Not a test recipe!"})
 
-    return incorrectRequest("Invald HTTP method or query missing uri", BAD_REQUEST)
+#     return incorrectRequest("Invald HTTP method or query missing uri", BAD_REQUEST)
 
 @login_required
 def setRating(request: HttpRequest):

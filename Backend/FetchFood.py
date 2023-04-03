@@ -10,6 +10,7 @@ def fetchfood(
     ingredients: str = "",
     options: dict[str, list[str] | str] = {},
     exclusions: list[str] = {},
+    random: bool=False,
     fullInfo: bool = False
 ):
     """
@@ -47,6 +48,10 @@ def fetchfood(
 
             if i < len(exclusions) - 1:
                 query += "&"
+
+
+    if random:
+        query+= f"&random=true"
 
     # Sends the request to the food API
     fullURL = f"{endpoint}?type=any&{query}&{appKey.credentials}"

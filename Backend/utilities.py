@@ -9,19 +9,114 @@ from Backend.FetchFood import fetchfood
 from Backend.models import Recipe, Ingredient, Nutrient
 
 REQUEST_LIMIT = 7
-MAX_RAND_WORDS = 3
-
-def removeNonAlpha(notAlpha: str):
-    """
-    Returns a string without any non-alphabetic characters in string.
-    """
-    onlyAlpha = ""
-    for i in range(len(notAlpha)):
-        if notAlpha[i].isalpha():
-            onlyAlpha += notAlpha[i]
-
-    return onlyAlpha
-
+DIETS = [
+	"balanced",
+	"high-fiber",
+	"high-protein",
+	"low-carb",
+	"low-fat",
+	"low-sodium",
+]
+HEALTHS = [
+	"alcohol-cocktail",
+	"alcohol-free",
+	"celery-free",
+	"crustacean-free",
+	"dairy-free",
+	"DASH",
+	"egg-free",
+	"fish-free",
+	"fodmap-free",
+	"gluten-free",
+	"immuno-supportive",
+	"keto-friendly",
+	"kidney-friendly",
+	"kosher",
+	"low-potassium",
+	"low-sugar",
+	"lupine-free",
+	"Mediterranean",
+	"mollusk-free",
+	"mustard-free",
+	"No-oil-added",
+	"paleo",
+	"peanut-free",
+	"Pescatarian",
+	"pork-free",
+	"red-meat-free",
+	"sesame-free",
+	"shellfish-free",
+	"soy-free",
+	"sugar-conscious",
+	"sulfite-free",
+	"tree-nut-free",
+	"vegan",
+	"vegetarian",
+	"wheat-free",
+]
+MEALTYPES = [
+	"breakfast",
+	"brunch",
+	"lunch/dinner",
+	"snack",
+	"teatime",
+]
+DISHTYPES = [
+	"alcohol cocktail",
+	"biscuits and cookies",
+	"bread",
+	"cereals",
+	"condiments and sauces",
+	"desserts",
+	"drinks",
+	"egg",
+	"ice cream and custard",
+	"main course",
+	"pancake",
+	"pasta",
+	"pastry",
+	"pies and tarts",
+	"pizza",
+	"preps",
+	"preserve",
+	"salad",
+	"sandwiches",
+	"seafood",
+	"side dish",
+	"soup",
+	"special occasions",
+	"starter",
+]
+CUISINETYPES = [
+	"american",
+	"asian",
+	"british",
+	"caribbean",
+	"central europe",
+	"eastern europe",
+	"chinese",
+	"french",
+	"greek",
+	"indian",
+	"italian",
+	"japanese",
+	"korean",
+	"kosher",
+	"mediterranean",
+	"mexican",
+	"middle eastern",
+	"nordic",
+	"south american",
+	"south east asia",
+	"world",
+]
+RECIPE_OPTIONS = {
+	"diet": DIETS,
+	"health": HEALTHS,
+	"mealType": MEALTYPES,
+    "dishType": DISHTYPES,
+    "cuisineType": CUISINETYPES
+}
 
 def FindRecipeNotInDB(recipes: list[dict[str, str | list | dict[str, str | int]]], recipeName: str, imageUrl: str):
     """
@@ -30,7 +125,7 @@ def FindRecipeNotInDB(recipes: list[dict[str, str | list | dict[str, str | int]]
     """
     for recipe in recipes:
         try:
-            Recipe.objects.get(uri=recipe["uri"].split("#recipe_")[-1])
+            Recipe.objects.get(uri=recipe["id"])
         except (Recipe.DoesNotExist):
             recipe.update({"name": recipeName, "image": imageUrl})
             return recipe
@@ -39,60 +134,35 @@ def fetchSimiliarRecipe(recipe: Recipe):
     """
     Gives a recipe dictionary with all relevant information from edamam api
     about a `similiar` recipe.\n
+    May also give a random recipe since if the first hit doesn't match.\n
     Gives an error message from the edamam web API.
-    """
-    recipeResults: list[dict[str]] = []
-    recipeName = recipe.name
-
-    """
-    First request will be with the exact recipe name.
-    If it has atleast `1` result then use the first result that isn't part of the database.
-    If doesn't have atleast `1` result or can't find any recipes that aren't already part of the database then:
-    Do a generic random search by only using 1 or 2 of the words in the given recipe name (`recipe.name`)
-    Doing random since it's generic there will be lots of recipes and want to get recipes that aren't already part of the database
-    so random result will dramatically reduce the need to do multiple queries.
     """
 
     response = fetchfood(recipe.name, fullInfo=True)
-    
-    if "message" not in response:
-        # print(response.keys())
-        results: list[dict[str, str | list | dict[str, str | int]]] = []
 
+    if "message" not in response:
         if len(response["results"]) > 0:
-            results = response["results"]
-            newRecipe = FindRecipeNotInDB(results, recipe.name, recipe.imageUrl)
+            newRecipe = FindRecipeNotInDB(response["results"], recipe.name, recipe.imageUrl)
             if newRecipe is not None:
-                print(3)
-                return newRecipe
+                return response["results"][0]
         
-        limit = REQUEST_LIMIT
-        while limit > 0:
-            if len(response["results"]) <= 0:
-                recipeNameList = recipe.name.split(" ")
-                randName = ""
-                for i in range(len(recipeNameList)):
-                    if i < MAX_RAND_WORDS:
-                        word = choice(recipeNameList)
-                        randName += f"{word} "
-                        while word in recipeNameList:
-                            recipeNameList.remove(word)
-                    else:
-                        break
+        for i in range(REQUEST_LIMIT):
+            categoryList: list[str] = []
+            categoryList.extend(RECIPE_OPTIONS.keys())
+            category = choice(categoryList)
+            option = choice(RECIPE_OPTIONS[category])
             
-            response = fetchfood(randName, fullInfo=True)
-            if "message" in response:
-                print(2)
+            response = fetchfood(options={category:[option]}, fullInfo=True, random=True)
+
+            if "message" not in response:
+                if len(response["results"]) > 0:
+                    newRecipe = FindRecipeNotInDB(response["results"], recipe.name, recipe.imageUrl)
+                    if newRecipe is not None:
+                        return response["results"][0]
+            else:
                 return response
-            
-            newRecipe = FindRecipeNotInDB(results, recipe.name, recipe.imageUrl)
-            if newRecipe is not None:
-                print(1)
-                return newRecipe
-            
-            limit -= 1
-    print(0)
-    # This response has results of recipes which isn't an empty list
+
+    
     return response
 
 
