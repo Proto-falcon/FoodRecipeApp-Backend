@@ -14,6 +14,7 @@ from Backend.utilities import makeFullRecipe
 from Backend.utilities import fetchSimiliarRecipe
 from Backend import FetchFood
 from Backend.models import User, Recipe, RateRecipe, RecentRecipe, MIN_RATING, MAX_RATING
+from Backend.recommender import algo, trainingSet
 
 key = Fernet.generate_key()
 fernet = Fernet(key)
@@ -278,29 +279,21 @@ def recommendRecipes(request: HttpRequest):
     """
     Recommends recipes to the user
     """
-    if request.method == "GET":
-        recipes = Recipe.objects.all()[:10]
-        
-        return JsonResponse({"results": [recipe.to_dict(False) for recipe in recipes]})
+    if request.method == "GET" and "id" in request.GET:
+        userId = int(request.GET["id"])
+        ownItemRatings: list[tuple[str, float]] = algo.xr[trainingSet.to_inner_uid(userId)]
+        recommendList: list[dict[str]] = []
+        users = algo.get_neighbors(userId,3)
+        for id in users:
+            for item in algo.xr[id]:
+                if (item[1] >= 3) and (item[0] not in ownItemRatings):
+                    transformedItem = Recipe.objects.get(pk=trainingSet.to_raw_iid(item[0])).to_dict(False)
+                    recommendList.append(transformedItem)
+            # list of tuples were first item is item inner Id and the second is the rating of the item
+            recommendList = sorted(recommendList,key=lambda x: x["rating"], reverse=True)
+        return JsonResponse({"results":recommendList})
     return incorrectRequest("Invald HTTP method", BAD_REQUEST)
 
-# def convertToFullRecipe(request: HttpRequest):
-#     """
-#     Converts an incomplete recipe to a full recipe from Edamam web API.
-#     """
-#     if "uri" in request.GET:
-#         try:
-#             recipe = Recipe.objects.get(uri=request.GET["uri"])
-#         except (Recipe.DoesNotExist):
-#             return JsonResponse({"message": "This recipe either doesn't exist or is already converted to a full recipe."})
-#         if recipe.isNotFullRecipe():
-#             recipeResult: dict[str] = fetchSimiliarRecipe(recipe)
-#             recipeCreated: Recipe = makeFullRecipe(recipeResult["id"], recipe, recipeResult)
-#             return JsonResponse(recipeCreated.to_dict(True))
-#         else:
-#             return JsonResponse({"message": "Not a test recipe!"})
-
-#     return incorrectRequest("Invald HTTP method or query missing uri", BAD_REQUEST)
 
 @login_required
 def setRating(request: HttpRequest):

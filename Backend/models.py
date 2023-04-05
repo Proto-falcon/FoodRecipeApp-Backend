@@ -42,6 +42,7 @@ class Recipe(models.Model):
     imageUrl = models.URLField(max_length=2000, default="")
     image = models.ImageField(upload_to='images/recipes', default="")
     source = models.URLField(max_length=2000, default="")
+    sourceName = models.CharField(max_length=200, default="")
 
     cautions = models.JSONField(default=dict)
     diets = models.JSONField(default=dict)
@@ -82,6 +83,7 @@ class Recipe(models.Model):
         if fullInfo:
             info.update({
                 "source": self.source,
+                "sourceName": self.sourceName,
                 "ingredients": self.ingredientTexts["list"],
                 "cautions": self.cautions["list"],
                 "diets": self.diets["list"],
@@ -105,6 +107,13 @@ class RateRecipe(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE)
     recipe = models.ForeignKey(Recipe, on_delete=models.CASCADE)
     rating = models.PositiveSmallIntegerField(validators=[MinValueValidator(MIN_RATING), MaxValueValidator(MAX_RATING)])
+
+    def to_dict(self):
+        return {
+            "user": self.user.pk,
+            "recipe": self.recipe.pk,
+            "rating": self.rating
+        }
 
 
 class Nutrient(models.Model):

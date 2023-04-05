@@ -241,8 +241,8 @@ def makeFullRecipe(id: str, incompleteRecipe: Recipe, fullRecipe: dict[str]):
         cautions = fullRecipe["cautions"]
 
     incompleteRecipe.uri=id
-    incompleteRecipe.name=fullRecipe["name"]
     incompleteRecipe.source=fullRecipe["source"]
+    incompleteRecipe.sourceName=fullRecipe["name"]
     incompleteRecipe.cautions={"list": cautions}
     incompleteRecipe.diets={"list": fullRecipe["diets"]}
     incompleteRecipe.healths={"list": fullRecipe["healths"]}
@@ -291,6 +291,7 @@ def createOrGetFullRecipe(id: str, fullRecipe: dict[str]):
         if not isCreated:
             return recipe
         
+        recipe.sourceName=fullRecipe["name"]
         recipe.cautions={"list": cautions}
         recipe.diets={"list": fullRecipe["diets"]}
         recipe.healths={"list": fullRecipe["healths"]}
