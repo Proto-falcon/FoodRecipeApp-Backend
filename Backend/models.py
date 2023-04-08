@@ -72,12 +72,14 @@ class Recipe(models.Model):
             image = self.imageUrl
         else:
             image = ""
-        
+        rating = RateRecipe.objects.filter(recipe=self.pk).aggregate(models.Avg('rating'))["rating__avg"]
+        if rating is not None:
+            rating = round(rating, 1)
         info = {
                 "id": self.pk,
                 "name": self.name,
                 "image": image,
-                "rating": RateRecipe.objects.filter(recipe=self.pk).aggregate(models.Avg('rating'))["rating__avg"]
+                "rating": rating
             }
         
         if fullInfo:

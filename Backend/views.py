@@ -24,7 +24,7 @@ NOT_FOUND = 404
 INTERNAL_SERVER_ERROR = 500
 
 RECENT_LIMIT = 5
-Most_RATED_LIMIT = 5
+MOST_RATED_LIMIT = 5
 
 def nextRecipes(url: str):
     response: JsonResponse = fetch("GET", url)
@@ -175,26 +175,30 @@ def addRecipes(request: HttpRequest) -> JsonResponse:
 
 def setRecentRecipe(request: HttpRequest):
     """
-    Adds or updates a recent recipe that the user has viewed.
+    Adds or updates a recent recipe that the user has viewed.\n
+    Even if it's an anonymous user the recipe will still be added to the database.
     """
     if request.method == "POST":
         content: dict[str, str] = json.loads(request.body)
-        try:
-            recipe = Recipe.objects.get(pk=content["id"])
-            recipe.save()
-        except (Recipe.DoesNotExist):
-            fullRecipe = FetchFood.fetchRecipe(content["id"])
-            recipe = createOrGetFullRecipe(content["id"], fullRecipe)
+        uri = str(content["id"])
+        fullRecipe: dict[str] = {}
+        recipe: Recipe = None
+        if uri.isdigit():
+            recipe = Recipe.objects.get(pk=uri)
+        else:
+            fullRecipe = FetchFood.fetchRecipe(uri)
+            recipe = createOrGetFullRecipe(uri, fullRecipe)
 
         try:
             user = User.objects.get(pk=request.user.pk)
 
             # Gets recent recipes in most recent order from first to last
-            recentRecipes = RecentRecipe.objects.filter().order_by("-date")
+            recentRecipes = RecentRecipe.objects.filter(user=user).order_by("-date")
             if len(recentRecipes) > RECENT_LIMIT:
-                recentRecipes[
-                    len(recentRecipes) - 1
-                ].delete()  # Deletes the least recent recipe
+                recentRecipes[-1].delete()  # Deletes the least recent recipe
+                # recentRecipes[
+                #     len(recentRecipes) - 1
+                # ].delete()
 
             recentRecipe = RecentRecipe.objects.get_or_create(recipe=recipe, user=user)[0]
             recentRecipe.save()
@@ -233,7 +237,7 @@ def getMostRatedRecipes(request: HttpRequest):
             ratedRecipe.recipe.to_dict(False)
             for ratedRecipe in RateRecipe.objects.filter(user=request.user.pk).order_by(
                 "-rating"
-            )[:Most_RATED_LIMIT]
+            )[:MOST_RATED_LIMIT]
         ]
         return JsonResponse({"results": results})
 
@@ -247,7 +251,12 @@ def getRecipe(request: HttpRequest):
     if request.method == "GET" and "id" in request.GET:
         recipe = {"minRating": MIN_RATING, "maxRating": MAX_RATING}
         try:
-            recipeObj = Recipe.objects.get(pk=request.GET["id"])
+            id = request.GET["id"]
+            recipeObj: Recipe = None
+            if id.isdigit():
+                recipeObj = Recipe.objects.get(pk=id)
+            else:
+                recipeObj = Recipe.objects.get(uri=id)
 
             if recipeObj.isNotFullRecipe():
                 recipeResult = fetchSimiliarRecipe(recipeObj)
@@ -267,7 +276,6 @@ def getRecipe(request: HttpRequest):
                     recipe=recipeObj, user=request.user.pk
                 ).rating
                 recipe.update({"userRating": userRating})
-            raise RateRecipe.DoesNotExist()
         except (RateRecipe.DoesNotExist):
             recipe.update({"userRating": 0})
 
@@ -275,24 +283,32 @@ def getRecipe(request: HttpRequest):
 
     return incorrectRequest("Invald HTTP method or query missing ID", BAD_REQUEST)
 
+@login_required
 def recommendRecipes(request: HttpRequest):
     """
     Recommends recipes to the user
     """
-    if request.method == "GET" and "id" in request.GET:
-        userId = int(request.GET["id"])
-        ownItemRatings: list[tuple[str, float]] = algo.xr[trainingSet.to_inner_uid(userId)]
+    if request.method == "GET":
+        try:
+            userId = trainingSet.to_inner_uid(int(request.user.pk))
+        except (ValueError):
+            return JsonResponse({"results":[]})
+        ownItemRatings: list[tuple[str, float]] = algo.xr[userId]
         recommendList: list[dict[str]] = []
         users = algo.get_neighbors(userId,3)
         for id in users:
+            itemLimit = 5
             for item in algo.xr[id]:
-                if (item[1] >= 3) and (item[0] not in ownItemRatings):
+                if (item[1] >= 3) and (item[0] not in ownItemRatings) and itemLimit > 0:
                     transformedItem = Recipe.objects.get(pk=trainingSet.to_raw_iid(item[0])).to_dict(False)
                     recommendList.append(transformedItem)
-            # list of tuples were first item is item inner Id and the second is the rating of the item
-            recommendList = sorted(recommendList,key=lambda x: x["rating"], reverse=True)
+                    itemLimit -= 1
+                else:
+                    break
+        # list of tuples were first item is item inner Id and the second is the rating of the item
+        recommendList = sorted(recommendList,key=lambda x: x["rating"], reverse=True)
         return JsonResponse({"results":recommendList})
-    return incorrectRequest("Invald HTTP method", BAD_REQUEST)
+    return incorrectRequest("Invald HTTP method or no query added", BAD_REQUEST)
 
 
 @login_required
@@ -318,9 +334,6 @@ def setRating(request: HttpRequest):
         rateRecipe.save()
 
         return HttpResponse()
-
-    response = JsonResponse({"message": "Invald HTTP method or query missing ID"})
-    response.status_code = BAD_REQUEST
     return incorrectRequest("Invald HTTP method or query missing ID", BAD_REQUEST)
 
 

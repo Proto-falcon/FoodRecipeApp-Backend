@@ -272,6 +272,16 @@ def createOrGetFullRecipe(id: str, fullRecipe: dict[str]):
     Also returns the recipe if it already exists and doesn't reinitialize
     other information.
     """
+    recipe, isCreated = Recipe.objects.get_or_create(
+        uri=id,
+        name=fullRecipe["name"],
+        source=fullRecipe["source"],
+    )
+
+    # return imediately if recipe already exists in the database
+    if not isCreated:
+        return recipe
+    
     # Gets the recipe image
     response = fetch("GET", fullRecipe["image"])
 
@@ -280,17 +290,7 @@ def createOrGetFullRecipe(id: str, fullRecipe: dict[str]):
         cautions: list[str] = []
         if len(fullRecipe["cautions"]) > 0:
             cautions = fullRecipe["cautions"]
-        
-        recipe, isCreated = Recipe.objects.get_or_create(
-            uri=id,
-            name=fullRecipe["name"],
-            source=fullRecipe["source"],
-        )
-
-        # return imediately if recipe already exists in the database
-        if not isCreated:
-            return recipe
-        
+    
         recipe.sourceName=fullRecipe["name"]
         recipe.cautions={"list": cautions}
         recipe.diets={"list": fullRecipe["diets"]}

@@ -38,13 +38,9 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-    'django_crontab',
     'Backend.apps.BackendConfig'
 ]
 
-CRONJOBS = [
-    ('*/2 * * * *', 'myapp.cron.trainAlgo')
-]
 
 AUTH_USER_MODEL = 'Backend.User'
 MIDDLEWARE = [

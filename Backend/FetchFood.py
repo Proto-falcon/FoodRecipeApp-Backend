@@ -54,7 +54,7 @@ def fetchfood(
         query+= f"&random=true"
 
     # Sends the request to the food API
-    fullURL = f"{endpoint}?type=any&{query}&{appKey.credentials}"
+    fullURL = f"{endpoint}?type=public&{query}&{appKey.credentials}"
     response: Response = fetch("GET", fullURL)
     results = serializeRecipeResults(response, fullInfo)
     return results
@@ -64,7 +64,7 @@ def fetchRecipe(id: str):
     """
     Fetches a single recipe via id with all relevant information
     """
-    fullURL = f"{endpoint}/{id}?type=any&{appKey.credentials}"
+    fullURL = f"{endpoint}/{id}?type=public&{appKey.credentials}"
     response: Response = fetch("GET", fullURL)
     content = json.loads(response.content)
     return transformRecipe(content, True)
@@ -125,12 +125,18 @@ def serializeRecipeResults(response: Response, fullInfo: bool = False):
     recipes: list[dict[str]] = []
     for hit in hits:
         recipe = transformRecipe(hit, fullInfo)
+        recipeID = None
         try:
             recipeID = Recipe.objects.get(uri=recipe["id"]).pk
             rating = RateRecipe.objects.filter(recipe=recipeID).aggregate(Avg('rating'))["rating__avg"]
         except Recipe.DoesNotExist:
             rating = "0.0"
-        recipe.update({"rating": rating})
+        
+        if recipeID is None:
+            recipe.update({"rating": rating})
+        else:
+            recipe.update({"rating": rating, "id": recipeID})
+        
         if recipe is not None:
             recipes.append(recipe)
     return {"results": recipes, "addRecipesLink": addRecipesLink}
