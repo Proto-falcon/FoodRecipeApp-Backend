@@ -131,7 +131,3 @@ MEDIA_ROOT = BASE_DIR / 'media'
 # https://docs.djangoproject.com/en/4.1/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
-
-# CRONJOBS = [
-#     ('* * * * *', 'Backend.cron.sayDespacito', '>> ~/django_cron.log 2>&1')
-# ]

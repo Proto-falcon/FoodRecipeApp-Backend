@@ -18,7 +18,9 @@ reader = Reader(rating_scale=(0, 5))
 with engine.connect() as conn, conn.begin():
     reviews = read_sql_table(
         "Backend_raterecipe", conn, columns=["user_id", "recipe_id", "rating"]
+        ,chunksize=1_000
     )
+    reviews = next(reviews)
 reviews = Dataset.load_from_df(reviews, reader)
 trainingSet = reviews.build_full_trainset()
 algo.fit(trainingSet)
