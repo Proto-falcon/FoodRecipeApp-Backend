@@ -1,6 +1,7 @@
 import json
 from requests import request as fetch
 from cryptography.fernet import Fernet
+from surprise import Trainset, KNNBasic
 from django.http import HttpRequest, JsonResponse, HttpResponse
 from django.contrib import auth
 from django.contrib.auth.decorators import login_required
@@ -14,7 +15,7 @@ from Backend.utilities import makeFullRecipe
 from Backend.utilities import fetchSimiliarRecipe
 from Backend import FetchFood
 from Backend.models import User, Recipe, RateRecipe, RecentRecipe, MIN_RATING, MAX_RATING
-from Backend.recommender import algo, trainingSet
+from Backend.recommender import recommenderInfo, instantiateTrain
 
 key = Fernet.generate_key()
 fernet = Fernet(key)
@@ -25,6 +26,9 @@ INTERNAL_SERVER_ERROR = 500
 
 RECENT_LIMIT = 5
 MOST_RATED_LIMIT = 5
+
+algoTraining = False
+
 
 def nextRecipes(url: str):
     response: JsonResponse = fetch("GET", url)
@@ -56,6 +60,11 @@ def page(request: HttpRequest):
     """
     Loads the frontend page.
     """
+    global algoTraining
+    if not algoTraining:
+        algoTraining = True
+        instantiateTrain()
+        
     return render(request, "pages/index.html")
 
 
@@ -289,6 +298,8 @@ def recommendRecipes(request: HttpRequest):
     Recommends recipes to the user
     """
     if request.method == "GET":
+        trainingSet: Trainset = recommenderInfo["trainSet"]
+        algo: KNNBasic = recommenderInfo["algo"]
         try:
             userId = trainingSet.to_inner_uid(int(request.user.pk))
         except (ValueError):
@@ -332,6 +343,10 @@ def setRating(request: HttpRequest):
             rateRecipe = RateRecipe(recipe=recipe, user=user, rating=content["rating"])
 
         rateRecipe.save()
+
+        # trainAlgo = Process(target=)
+        # trainAlgo.daemon = True
+
 
         return HttpResponse()
     return incorrectRequest("Invald HTTP method or query missing ID", BAD_REQUEST)
