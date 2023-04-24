@@ -14,7 +14,14 @@ from Backend.utilities import createOrGetFullRecipe
 from Backend.utilities import makeFullRecipe
 from Backend.utilities import fetchSimiliarRecipe
 from Backend import FetchFood
-from Backend.models import User, Recipe, RateRecipe, RecentRecipe, MIN_RATING, MAX_RATING
+from Backend.models import (
+    User,
+    Recipe,
+    RateRecipe,
+    RecentRecipe,
+    MIN_RATING,
+    MAX_RATING,
+)
 from Backend.recommender import recommenderInfo, instantiateTrain
 
 key = Fernet.generate_key()
@@ -27,7 +34,9 @@ INTERNAL_SERVER_ERROR = 500
 RECENT_LIMIT = 5
 MOST_RATED_LIMIT = 5
 
-algoTraining = False
+MIN_ESTIMATED_RATING = 3
+RECOMMEND_LIMIT_PER_USER = 5
+RECOMMEND_LIMIT = 10
 
 
 def nextRecipes(url: str):
@@ -40,9 +49,10 @@ def nextRecipes(url: str):
             ).decode()
         else:
             results.pop("addRecipesLink")
-    except (KeyError):
+    except KeyError:
         return results
     return results
+
 
 # Create your views here.
 def checkLogin(request: HttpRequest) -> JsonResponse:
@@ -50,7 +60,7 @@ def checkLogin(request: HttpRequest) -> JsonResponse:
         try:
             user = get_object_or_404(User, username=request.user.username)
             return JsonResponse({"token": get_token(request), "user": user.to_dict()})
-        except (Http404):
+        except Http404:
             return JsonResponse({"token": get_token(request), "user": False})
     else:
         return incorrectRequest("Invalid http method", BAD_REQUEST)
@@ -60,9 +70,7 @@ def page(request: HttpRequest):
     """
     Loads the frontend page.
     """
-    global algoTraining
-    if not algoTraining:
-        algoTraining = True
+    if not recommenderInfo["training"]:
         instantiateTrain()
         
     return render(request, "pages/index.html")
@@ -72,6 +80,9 @@ def recipePage(request: HttpRequest, id: str):
     """
     Loads the recipe info page
     """
+    if not recommenderInfo["training"]:
+        instantiateTrain()
+
     return render(request, "pages/index.html")
 
 
@@ -109,9 +120,13 @@ def signUp(request: HttpRequest) -> JsonResponse:
                 auth.login(request, user)
                 return JsonResponse({"signUpSuccess": True})
 
-            return incorrectRequest("Authentication failed", INTERNAL_SERVER_ERROR, signUpSuccess=False)
+            return incorrectRequest(
+                "Authentication failed", INTERNAL_SERVER_ERROR, signUpSuccess=False
+            )
     else:
-        return incorrectRequest("Invalid HTTP method or missing fields to create account", BAD_REQUEST)
+        return incorrectRequest(
+            "Invalid HTTP method or missing fields to create account", BAD_REQUEST
+        )
 
 
 def login(request: HttpRequest) -> JsonResponse:
@@ -130,9 +145,15 @@ def login(request: HttpRequest) -> JsonResponse:
             user: User = fetch_object_or_404(User, username=user.get_username())
             return JsonResponse({"loginSuccess": True, "user": user.to_dict()})
 
-        return incorrectRequest("Account doesn't Exist", INTERNAL_SERVER_ERROR, loginSuccess=False)
+        return incorrectRequest(
+            "Account doesn't Exist", INTERNAL_SERVER_ERROR, loginSuccess=False
+        )
     else:
-        return incorrectRequest("Invalid HTTP method or missing fields to create account", BAD_REQUEST, loginSuccess=False)
+        return incorrectRequest(
+            "Invalid HTTP method or missing fields to create account",
+            BAD_REQUEST,
+            loginSuccess=False,
+        )
 
 
 def getRecipes(request: HttpRequest):
@@ -165,7 +186,7 @@ def getRecipes(request: HttpRequest):
             else:
                 results.pop("addRecipesLink")
             return JsonResponse(results)
-        except (KeyError):
+        except KeyError:
             return JsonResponse(results)
     else:
         return incorrectRequest("No ingredients given!", BAD_REQUEST)
@@ -205,15 +226,14 @@ def setRecentRecipe(request: HttpRequest):
             recentRecipes = RecentRecipe.objects.filter(user=user).order_by("-date")
             if len(recentRecipes) > RECENT_LIMIT:
                 recentRecipes[-1].delete()  # Deletes the least recent recipe
-                # recentRecipes[
-                #     len(recentRecipes) - 1
-                # ].delete()
 
-            recentRecipe = RecentRecipe.objects.get_or_create(recipe=recipe, user=user)[0]
+            recentRecipe = RecentRecipe.objects.get_or_create(recipe=recipe, user=user)[
+                0
+            ]
             recentRecipe.save()
 
             return HttpResponse()
-        except (User.DoesNotExist):
+        except User.DoesNotExist:
             return HttpResponse()
 
     return incorrectRequest("Invaild HTTP request", BAD_REQUEST, added=False)
@@ -270,12 +290,16 @@ def getRecipe(request: HttpRequest):
             if recipeObj.isNotFullRecipe():
                 recipeResult = fetchSimiliarRecipe(recipeObj)
                 if "message" not in recipeResult:
-                    recipeObj = makeFullRecipe(recipeResult["id"], recipeObj, recipeResult)
+                    recipeObj = makeFullRecipe(
+                        recipeResult["id"], recipeObj, recipeResult
+                    )
                 else:
-                    return incorrectRequest(recipeResult["message"], INTERNAL_SERVER_ERROR)
+                    return incorrectRequest(
+                        recipeResult["message"], INTERNAL_SERVER_ERROR
+                    )
 
             recipe.update(recipeObj.to_dict(True))
-        except (Recipe.DoesNotExist):
+        except Recipe.DoesNotExist:
             recipe.update(FetchFood.fetchRecipe(request.GET["id"]))
             recipeObj = None
 
@@ -285,12 +309,13 @@ def getRecipe(request: HttpRequest):
                     recipe=recipeObj, user=request.user.pk
                 ).rating
                 recipe.update({"userRating": userRating})
-        except (RateRecipe.DoesNotExist):
+        except RateRecipe.DoesNotExist:
             recipe.update({"userRating": 0})
 
         return JsonResponse(recipe)
 
     return incorrectRequest("Invald HTTP method or query missing ID", BAD_REQUEST)
+
 
 @login_required
 def recommendRecipes(request: HttpRequest):
@@ -300,25 +325,29 @@ def recommendRecipes(request: HttpRequest):
     if request.method == "GET":
         trainingSet: Trainset = recommenderInfo["trainSet"]
         algo: KNNBasic = recommenderInfo["algo"]
+        if trainingSet is None:
+            return JsonResponse({"results": []})
         try:
             userId = trainingSet.to_inner_uid(int(request.user.pk))
-        except (ValueError):
-            return JsonResponse({"results":[]})
+        except ValueError:
+            return JsonResponse({"results": []})
         ownItemRatings: list[tuple[str, float]] = algo.xr[userId]
         recommendList: list[dict[str]] = []
-        users = algo.get_neighbors(userId,3)
+        users = algo.get_neighbors(userId, 3)
         for id in users:
-            itemLimit = 5
+            itemLimit = RECOMMEND_LIMIT_PER_USER
             for item in algo.xr[id]:
-                if (item[1] >= 3) and (item[0] not in ownItemRatings) and itemLimit > 0:
-                    transformedItem = Recipe.objects.get(pk=trainingSet.to_raw_iid(item[0])).to_dict(False)
+                if (algo.estimate(id, item[0])[0] > 3) and (item[0] not in ownItemRatings) and itemLimit > 0:
+                    transformedItem = Recipe.objects.get(
+                        pk=trainingSet.to_raw_iid(item[0])
+                    ).to_dict(False)
                     recommendList.append(transformedItem)
                     itemLimit -= 1
                 else:
                     break
         # list of tuples were first item is item inner Id and the second is the rating of the item
-        recommendList = sorted(recommendList,key=lambda x: x["rating"], reverse=True)
-        return JsonResponse({"results":recommendList})
+        recommendList = sorted(recommendList, key=lambda x: x["rating"], reverse=True)
+        return JsonResponse({"results": recommendList})
     return incorrectRequest("Invald HTTP method or no query added", BAD_REQUEST)
 
 
@@ -331,7 +360,7 @@ def setRating(request: HttpRequest):
     if request.method == "PUT" and "id" in content and "rating" in content:
         try:
             recipe = Recipe.objects.get(pk=content["id"])
-        except (Recipe.DoesNotExist):
+        except Recipe.DoesNotExist:
             return incorrectRequest("ID doesn't match with a recipe", NOT_FOUND)
 
         user = User.objects.get(pk=request.user.pk)
@@ -339,14 +368,13 @@ def setRating(request: HttpRequest):
         try:
             rateRecipe = RateRecipe.objects.get(user=user, recipe=recipe)
             rateRecipe.rating = content["rating"]
-        except (RateRecipe.DoesNotExist):
+        except RateRecipe.DoesNotExist:
             rateRecipe = RateRecipe(recipe=recipe, user=user, rating=content["rating"])
 
         rateRecipe.save()
 
-        # trainAlgo = Process(target=)
-        # trainAlgo.daemon = True
-
+        if not recommenderInfo["training"]:
+            instantiateTrain()
 
         return HttpResponse()
     return incorrectRequest("Invald HTTP method or query missing ID", BAD_REQUEST)
@@ -400,6 +428,6 @@ def logout(request: HttpRequest) -> JsonResponse:
     try:
         auth.logout(request)
         return JsonResponse({"token": get_token(request), "loggedOut": True})
-    except (Http404):
+    except Http404:
         incorrectRequest("Failed to logout", loggedOut=False)
         return incorrectRequest("Failed to logout", loggedOut=False)
