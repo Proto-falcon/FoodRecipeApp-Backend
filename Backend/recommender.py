@@ -5,9 +5,11 @@ from surprise import Dataset
 from surprise import KNNBasic
 from multiprocessing import Manager, Process
 
+USER_BASED = False
+
 sim_options = {
     "name": "msd",
-    "user_based": True,  # Compute  similarities between users
+    "user_based": USER_BASED,  # Compute similarities between users
 }
 
 algo = KNNBasic(sim_options=sim_options)
@@ -22,35 +24,6 @@ recommenderInfo.update(
     }
 )
 
-"""
-
-
-
-
-
-
-
-
-
-
-
-REMEMBER TO MENTION WHY I PICK EITHER USER-BASED OR ITEM-BASED THEN YOU CAN TALK ABOUT IMPLEMNTATION
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-"""
-
 def instantiateTrain():
     trainAlgo = Process(target=reTrainAlgo, daemon=True)
     recommenderInfo.update({"training": True})
@@ -62,7 +35,7 @@ def reTrainAlgo():
     with engine.connect() as conn, conn.begin():
         reviews = read_sql_table(
             "Backend_raterecipe", conn, columns=["user_id", "recipe_id", "rating"]
-            , chunksize=50_000
+            , chunksize=15_000
         )
         reviews = next(reviews)
     reader = Reader(rating_scale=(0, 5))

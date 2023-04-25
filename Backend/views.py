@@ -22,7 +22,7 @@ from Backend.models import (
     MIN_RATING,
     MAX_RATING,
 )
-from Backend.recommender import recommenderInfo, instantiateTrain
+from Backend.recommender import recommenderInfo, instantiateTrain, USER_BASED
 
 key = Fernet.generate_key()
 fernet = Fernet(key)
@@ -36,19 +36,20 @@ MOST_RATED_LIMIT = 5
 
 MIN_ESTIMATED_RATING = 3
 RECOMMEND_LIMIT_PER_USER = 5
-RECOMMEND_LIMIT = 10
+RECOMMEND_LIMIT = 20
 
 
-def nextRecipes(url: str):
-    response: JsonResponse = fetch("GET", url)
-    results = FetchFood.serializeRecipeResults(response)
+def encryptLink(results: dict[str]):
+    """
+    Encrypts the link to next set of recipes from Edamam API within the dictionary
+    """
     try:
         if results["addRecipesLink"] is not None:
             results["addRecipesLink"] = fernet.encrypt(
                 results["addRecipesLink"].encode()
             ).decode()
         else:
-            results.pop("addRecipesLink")
+            results["addRecipesLink"] = ""
     except KeyError:
         return results
     return results
@@ -57,6 +58,9 @@ def nextRecipes(url: str):
 # Create your views here.
 def checkLogin(request: HttpRequest) -> JsonResponse:
     if request.method == "GET":
+        # if algorithm isn't trained and not currently training then (re)train the algorithm
+        if getattr(recommenderInfo["algo"], "sim", None) is None and not recommenderInfo["training"]:
+            instantiateTrain()
         try:
             user = get_object_or_404(User, username=request.user.username)
             return JsonResponse({"token": get_token(request), "user": user.to_dict()})
@@ -70,9 +74,6 @@ def page(request: HttpRequest):
     """
     Loads the frontend page.
     """
-    if not recommenderInfo["training"]:
-        instantiateTrain()
-        
     return render(request, "pages/index.html")
 
 
@@ -80,9 +81,6 @@ def recipePage(request: HttpRequest, id: str):
     """
     Loads the recipe info page
     """
-    if not recommenderInfo["training"]:
-        instantiateTrain()
-
     return render(request, "pages/index.html")
 
 
@@ -178,16 +176,8 @@ def getRecipes(request: HttpRequest):
 
     if len(ingredients) > 0 or len(options) > 0 or len(exclusions):
         results = FetchFood.fetchfood(ingredients, options, exclusions, False)
-        try:
-            if results["addRecipesLink"] is not None:
-                results["addRecipesLink"] = fernet.encrypt(
-                    results["addRecipesLink"].encode()
-                ).decode()
-            else:
-                results.pop("addRecipesLink")
-            return JsonResponse(results)
-        except KeyError:
-            return JsonResponse(results)
+        results = encryptLink(results)
+        return JsonResponse(results)
     else:
         return incorrectRequest("No ingredients given!", BAD_REQUEST)
 
@@ -198,7 +188,10 @@ def addRecipes(request: HttpRequest) -> JsonResponse:
     """
     if "nextLink" in request.GET and request.GET["nextLink"] != "undefined":
         url = fernet.decrypt(request.GET["nextLink"].encode(), 31557600)
-        return JsonResponse(nextRecipes(url))
+        response: JsonResponse = fetch("GET", url)
+        results = FetchFood.serializeRecipeResults(response)
+        results = encryptLink(results)
+        return JsonResponse(results)
 
     return incorrectRequest("invalid URL", BAD_REQUEST)
 
@@ -327,26 +320,40 @@ def recommendRecipes(request: HttpRequest):
         algo: KNNBasic = recommenderInfo["algo"]
         if trainingSet is None:
             return JsonResponse({"results": []})
-        try:
-            userId = trainingSet.to_inner_uid(int(request.user.pk))
-        except ValueError:
-            return JsonResponse({"results": []})
-        ownItemRatings: list[tuple[str, float]] = algo.xr[userId]
         recommendList: list[dict[str]] = []
-        users = algo.get_neighbors(userId, 3)
-        for id in users:
-            itemLimit = RECOMMEND_LIMIT_PER_USER
-            for item in algo.xr[id]:
-                if (algo.estimate(id, item[0])[0] > 3) and (item[0] not in ownItemRatings) and itemLimit > 0:
-                    transformedItem = Recipe.objects.get(
-                        pk=trainingSet.to_raw_iid(item[0])
-                    ).to_dict(False)
-                    recommendList.append(transformedItem)
-                    itemLimit -= 1
-                else:
+        if USER_BASED:
+            try:
+                userId = trainingSet.to_inner_uid(int(request.user.pk))
+            except ValueError:
+                return JsonResponse({"results": []})
+            ownItemRatings = algo.xr[userId]
+            users = algo.get_neighbors(userId, RECOMMEND_LIMIT//RECOMMEND_LIMIT_PER_USER)
+            for id in users:
+                itemLimit = RECOMMEND_LIMIT_PER_USER
+                for item in algo.xr[id]:
+                    if (algo.estimate(id, item[0])[0] > 3) and (item[0] not in ownItemRatings) and itemLimit > 0:
+                        transformedItem = Recipe.objects.get(
+                            pk=trainingSet.to_raw_iid(item[0])
+                        ).to_dict(False)
+                        recommendList.append(transformedItem)
+                        itemLimit -= 1
+                    else:
+                        break
+        else:
+            try:
+                ownItemRatings = RateRecipe.objects.filter(user=request.user.pk)
+                RecipeId = ownItemRatings.filter(rating=5)[0].pk
+            except ValueError:
+                return JsonResponse({"results": []})
+            for id in algo.get_neighbors(RecipeId, int(RECOMMEND_LIMIT * 2)):
+                if len(recommendList) >= RECOMMEND_LIMIT:
                     break
-        # list of tuples were first item is item inner Id and the second is the rating of the item
-        recommendList = sorted(recommendList, key=lambda x: x["rating"], reverse=True)
+                try:
+                    item = Recipe.objects.get(pk=int(trainingSet.to_raw_iid(id)))
+                    if item.pk not in ownItemRatings.values_list("pk",flat=True):
+                        recommendList.append(item.to_dict())
+                except (ValueError, Recipe.DoesNotExist):
+                    pass
         return JsonResponse({"results": recommendList})
     return incorrectRequest("Invald HTTP method or no query added", BAD_REQUEST)
 
