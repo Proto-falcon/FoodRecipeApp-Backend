@@ -1,11 +1,15 @@
 import json
 from requests import request as fetch
 from cryptography.fernet import Fernet
-from surprise import Trainset, KNNBasic
-from django.http import HttpRequest, JsonResponse, HttpResponse
+from surprise import Trainset
+from surprise import KNNBasic
+from django.http import HttpRequest
+from django.http import JsonResponse
+from django.http import HttpResponse
 from django.contrib import auth
 from django.contrib.auth.decorators import login_required
-from django.shortcuts import get_object_or_404, render
+from django.shortcuts import get_object_or_404
+from django.shortcuts import render
 from django.middleware.csrf import get_token
 from django.http import Http404
 from Backend.utilities import incorrectRequest
@@ -14,15 +18,16 @@ from Backend.utilities import createOrGetFullRecipe
 from Backend.utilities import makeFullRecipe
 from Backend.utilities import fetchSimiliarRecipe
 from Backend import FetchFood
-from Backend.models import (
-    User,
-    Recipe,
-    RateRecipe,
-    RecentRecipe,
-    MIN_RATING,
-    MAX_RATING,
-)
-from Backend.recommender import recommenderInfo, instantiateTrain, USER_BASED
+from Backend.models import User
+from Backend.models import Recipe
+from Backend.models import RateRecipe
+from Backend.models import RecentRecipe
+from Backend.models import MIN_RATING
+from Backend.models import MAX_RATING
+from Backend.recommender import algo as trainedAlgo
+from Backend.recommender import trainingSet as tSet
+from Backend.recommender import trainAlgo
+from Backend.recommender import USER_BASED
 
 key = Fernet.generate_key()
 fernet = Fernet(key)
@@ -37,6 +42,8 @@ MOST_RATED_LIMIT = 5
 MIN_ESTIMATED_RATING = 3
 RECOMMEND_LIMIT_PER_USER = 5
 RECOMMEND_LIMIT = 20
+
+training = False
 
 
 def encryptLink(results: dict[str]):
@@ -58,9 +65,6 @@ def encryptLink(results: dict[str]):
 # Create your views here.
 def checkLogin(request: HttpRequest) -> JsonResponse:
     if request.method == "GET":
-        # if algorithm isn't trained and not currently training then (re)train the algorithm
-        if getattr(recommenderInfo["algo"], "sim", None) is None and not recommenderInfo["training"]:
-            instantiateTrain()
         try:
             user = get_object_or_404(User, username=request.user.username)
             return JsonResponse({"token": get_token(request), "user": user.to_dict()})
@@ -316,8 +320,8 @@ def recommendRecipes(request: HttpRequest):
     Recommends recipes to the user
     """
     if request.method == "GET":
-        trainingSet: Trainset = recommenderInfo["trainSet"]
-        algo: KNNBasic = recommenderInfo["algo"]
+        trainingSet: Trainset = tSet
+        algo: KNNBasic = trainedAlgo
         if trainingSet is None:
             return JsonResponse({"results": []})
         recommendList: list[dict[str]] = []
@@ -342,10 +346,10 @@ def recommendRecipes(request: HttpRequest):
         else:
             try:
                 ownItemRatings = RateRecipe.objects.filter(user=request.user.pk)
-                RecipeId = ownItemRatings.filter(rating=5)[0].pk
+                RecipeId = ownItemRatings.filter(rating=5)[0].recipe.pk
             except ValueError:
                 return JsonResponse({"results": []})
-            for id in algo.get_neighbors(RecipeId, int(RECOMMEND_LIMIT * 2)):
+            for id in algo.get_neighbors(trainingSet.to_inner_iid(int(RecipeId)), int(RECOMMEND_LIMIT * 2)):
                 if len(recommendList) >= RECOMMEND_LIMIT:
                     break
                 try:
@@ -379,9 +383,12 @@ def setRating(request: HttpRequest):
             rateRecipe = RateRecipe(recipe=recipe, user=user, rating=content["rating"])
 
         rateRecipe.save()
-
-        if not recommenderInfo["training"]:
-            instantiateTrain()
+        
+        global training
+        if not training:
+            training = True
+            trainAlgo()
+            training = False
 
         return HttpResponse()
     return incorrectRequest("Invald HTTP method or query missing ID", BAD_REQUEST)

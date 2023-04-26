@@ -7,19 +7,20 @@ from django.core.validators import MinValueValidator, MaxValueValidator
 MIN_FLOAT = 0
 MAX_RATING = 5
 MIN_RATING = 1
-MAX_POS_INT_FIELD = 9223372036854775807
+
 
 class User(AbstractUser):
     """
     Our User models is a sub-class of Django's AbstractUser
     So we can make use of Django's authentication system
     """
+
     username = models.CharField(max_length=50, unique=True)
     email = models.EmailField(unique=True)
 
     USERNAME_FIELD = "username"
     REQUIRED_FIELDS = ["email"]
-    
+
     def __str__(self):
         return f"{self.username}, {self.email}"
 
@@ -28,7 +29,6 @@ class User(AbstractUser):
             "username": self.username,
             "email": self.email,
         }
-    
 
 
 class Recipe(models.Model):
@@ -40,7 +40,7 @@ class Recipe(models.Model):
     uri = models.CharField(max_length=2000, unique=True)
     name = models.CharField(max_length=200, default="")
     imageUrl = models.URLField(max_length=2000, default="")
-    image = models.ImageField(upload_to='images/recipes', default="")
+    image = models.ImageField(upload_to="images/recipes", default="")
     source = models.URLField(max_length=2000, default="")
     sourceName = models.CharField(max_length=200, default="")
 
@@ -54,7 +54,7 @@ class Recipe(models.Model):
 
     def __str__(self) -> str:
         return f"ID: {self.pk}, Name: {self.name}"
-    
+
     def isNotFullRecipe(self):
         """
         Checks if the recipe object only has uri and name
@@ -63,8 +63,7 @@ class Recipe(models.Model):
         """
         return self.uri.isdigit() and len(self.source) <= 0
 
-
-    def to_dict(self, fullInfo: bool=False):
+    def to_dict(self, fullInfo: bool = False):
         image = self.image
         if image:
             image = image.url
@@ -72,33 +71,32 @@ class Recipe(models.Model):
             image = self.imageUrl
         else:
             image = ""
-        rating = RateRecipe.objects.filter(recipe=self.pk).aggregate(models.Avg('rating'))["rating__avg"]
+        rating = RateRecipe.objects.filter(recipe=self.pk).aggregate(
+            models.Avg("rating")
+        )["rating__avg"]
         if rating is not None:
             rating = round(rating, 1)
-        info = {
-                "id": self.pk,
-                "name": self.name,
-                "image": image,
-                "rating": rating
-            }
-        
+        info = {"id": self.pk, "name": self.name, "image": image, "rating": rating}
+
         if fullInfo:
-            info.update({
-                "source": self.source,
-                "sourceName": self.sourceName,
-                "ingredients": self.ingredientTexts["list"],
-                "cautions": self.cautions["list"],
-                "diets": self.diets["list"],
-                "healths": self.healths["list"],
-                "cuisineTypes": self.cuisineTypes["list"],
-                "mealTypes": self.mealTypes["list"],
-                "dishTypes": self.dishTypes["list"],
-                "nutrients": [
-                    nutrient.to_dict()
-                    for nutrient in Nutrient.objects.filter(recipe=self.pk)
-                ]
-            })
-        
+            info.update(
+                {
+                    "source": self.source,
+                    "sourceName": self.sourceName,
+                    "ingredients": self.ingredientTexts["list"],
+                    "cautions": self.cautions["list"],
+                    "diets": self.diets["list"],
+                    "healths": self.healths["list"],
+                    "cuisineTypes": self.cuisineTypes["list"],
+                    "mealTypes": self.mealTypes["list"],
+                    "dishTypes": self.dishTypes["list"],
+                    "nutrients": [
+                        nutrient.to_dict()
+                        for nutrient in Nutrient.objects.filter(recipe=self.pk)
+                    ],
+                }
+            )
+
         return info
 
 class RateRecipe(models.Model):
@@ -108,14 +106,12 @@ class RateRecipe(models.Model):
 
     user = models.ForeignKey(User, on_delete=models.CASCADE)
     recipe = models.ForeignKey(Recipe, on_delete=models.CASCADE)
-    rating = models.PositiveSmallIntegerField(validators=[MinValueValidator(MIN_RATING), MaxValueValidator(MAX_RATING)])
+    rating = models.PositiveSmallIntegerField(
+        validators=[MinValueValidator(MIN_RATING), MaxValueValidator(MAX_RATING)]
+    )
 
     def to_dict(self):
-        return {
-            "user": self.user.pk,
-            "recipe": self.recipe.pk,
-            "rating": self.rating
-        }
+        return {"user": self.user.pk, "recipe": self.recipe.pk, "rating": self.rating}
 
 
 class Nutrient(models.Model):
@@ -129,11 +125,7 @@ class Nutrient(models.Model):
     unit = models.CharField(max_length=50)
 
     def to_dict(self):
-        return {
-            "label": self.label,
-            "quantity": self.quantity,
-            "unit": self.unit
-        }
+        return {"label": self.label, "quantity": self.quantity, "unit": self.unit}
 
 
 class Ingredient(models.Model):
@@ -152,7 +144,7 @@ class Ingredient(models.Model):
             "name": self.name,
             "quantity": self.quantity,
             "measure": self.measure,
-            "category": self.category
+            "category": self.category,
         }
 
 
@@ -160,6 +152,7 @@ class RecentRecipe(models.Model):
     """
     Represents recently viewd recipes from user
     """
+
     user = models.ForeignKey(User, on_delete=models.CASCADE)
     recipe = models.ForeignKey(Recipe, on_delete=models.CASCADE)
     date = models.DateTimeField(auto_now=True)
