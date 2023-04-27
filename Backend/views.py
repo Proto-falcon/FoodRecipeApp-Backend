@@ -24,13 +24,14 @@ from Backend.models import RateRecipe
 from Backend.models import RecentRecipe
 from Backend.models import MIN_RATING
 from Backend.models import MAX_RATING
-from Backend.recommender import algo as trainedAlgo
-from Backend.recommender import trainingSet as tSet
-from Backend.recommender import trainAlgo
+from Backend.recommender import recommenderInfo
+from Backend.recommender import instantiateTrain
 from Backend.recommender import USER_BASED
 
 key = Fernet.generate_key()
 fernet = Fernet(key)
+
+TIME_TO_LIVE = round(365.25*24*60*60)
 
 BAD_REQUEST = 400
 NOT_FOUND = 404
@@ -191,7 +192,7 @@ def addRecipes(request: HttpRequest) -> JsonResponse:
     Gives a list of recipes via a recipe link
     """
     if "nextLink" in request.GET and request.GET["nextLink"] != "undefined":
-        url = fernet.decrypt(request.GET["nextLink"].encode(), 31557600)
+        url = fernet.decrypt(request.GET["nextLink"].encode(), TIME_TO_LIVE)
         response: JsonResponse = fetch("GET", url)
         results = FetchFood.serializeRecipeResults(response)
         results = encryptLink(results)
@@ -320,8 +321,8 @@ def recommendRecipes(request: HttpRequest):
     Recommends recipes to the user
     """
     if request.method == "GET":
-        trainingSet: Trainset = tSet
-        algo: KNNBasic = trainedAlgo
+        trainingSet: Trainset = recommenderInfo["trainSet"]
+        algo: KNNBasic = recommenderInfo["algo"]
         if trainingSet is None:
             return JsonResponse({"results": []})
         recommendList: list[dict[str]] = []
@@ -335,7 +336,7 @@ def recommendRecipes(request: HttpRequest):
             for id in users:
                 itemLimit = RECOMMEND_LIMIT_PER_USER
                 for item in algo.xr[id]:
-                    if (algo.estimate(id, item[0])[0] > 3) and (item[0] not in ownItemRatings) and itemLimit > 0:
+                    if (algo.estimate(id, item[0])[0] > MIN_ESTIMATED_RATING) and (item[0] not in ownItemRatings) and itemLimit > 0:
                         transformedItem = Recipe.objects.get(
                             pk=trainingSet.to_raw_iid(item[0])
                         ).to_dict(False)
@@ -346,8 +347,15 @@ def recommendRecipes(request: HttpRequest):
         else:
             try:
                 ownItemRatings = RateRecipe.objects.filter(user=request.user.pk)
-                RecipeId = ownItemRatings.filter(rating=5)[0].recipe.pk
-            except ValueError:
+                RecipeId: any = None
+                for i in range(MIN_RATING, MAX_RATING + 1):
+                    filteredOwnItems = ownItemRatings.filter(rating=i)
+                    if filteredOwnItems.exists():
+                        RecipeId = filteredOwnItems[0].recipe.pk
+                        break
+                if RecipeId is None:
+                    raise ValueError
+            except (ValueError):
                 return JsonResponse({"results": []})
             for id in algo.get_neighbors(trainingSet.to_inner_iid(int(RecipeId)), int(RECOMMEND_LIMIT * 2)):
                 if len(recommendList) >= RECOMMEND_LIMIT:
@@ -387,8 +395,9 @@ def setRating(request: HttpRequest):
         global training
         if not training:
             training = True
-            trainAlgo()
+            instantiateTrain()
             training = False
+            
 
         return HttpResponse()
     return incorrectRequest("Invald HTTP method or query missing ID", BAD_REQUEST)
