@@ -65,6 +65,10 @@ def encryptLink(results: dict[str]):
 
 # Create your views here.
 def checkLogin(request: HttpRequest) -> JsonResponse:
+    """
+    Gives the CSRF token and checks that the user is logged in.
+    
+    """
     if request.method == "GET":
         try:
             user = get_object_or_404(User, username=request.user.username)
@@ -452,5 +456,4 @@ def logout(request: HttpRequest) -> JsonResponse:
         auth.logout(request)
         return JsonResponse({"token": get_token(request), "loggedOut": True})
     except Http404:
-        incorrectRequest("Failed to logout", loggedOut=False)
         return incorrectRequest("Failed to logout", loggedOut=False)
