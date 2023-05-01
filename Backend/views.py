@@ -340,14 +340,14 @@ def recommendRecipes(request: HttpRequest):
             for id in users:
                 itemLimit = RECOMMEND_LIMIT_PER_USER
                 for item in algo.xr[id]:
-                    if (algo.estimate(id, item[0])[0] > MIN_ESTIMATED_RATING) and (item[0] not in ownItemRatings) and itemLimit > 0:
+                    if itemLimit <= 0:
+                        break
+                    if (algo.estimate(id, item[0])[0] > MIN_ESTIMATED_RATING) and (item[0] not in ownItemRatings):
                         transformedItem = Recipe.objects.get(
                             pk=trainingSet.to_raw_iid(item[0])
                         ).to_dict(False)
                         recommendList.append(transformedItem)
                         itemLimit -= 1
-                    else:
-                        break
         else:
             try:
                 ownItemRatings = RateRecipe.objects.filter(user=request.user.pk)
