@@ -3,7 +3,7 @@ from pandas import read_sql_table
 from sqlalchemy import create_engine
 from surprise import Reader
 from surprise import Dataset
-from surprise import KNNBasic
+from surprise import KNNBaseline
 from multiprocessing import Manager, Process
 
 USER_BASED = True
@@ -13,7 +13,7 @@ sim_options = {
     "user_based": USER_BASED,  # Compute similarities between users
 }
 
-algo = KNNBasic(sim_options=sim_options)
+algo = KNNBaseline(sim_options=sim_options)
 
 manager = Manager()
 recommenderInfo = manager.dict()
@@ -40,7 +40,7 @@ def reTrainAlgo():
     reviews = Dataset.load_from_df(reviews, reader)
     trainingSet = reviews.build_full_trainset()
 
-    algo = KNNBasic(sim_options=sim_options)
+    algo = KNNBaseline(sim_options=sim_options)
     
     algo.fit(trainingSet)
 
