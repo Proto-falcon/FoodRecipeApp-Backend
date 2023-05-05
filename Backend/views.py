@@ -283,17 +283,13 @@ def getRecipe(request: HttpRequest):
         recipe = {"minRating": MIN_RATING, "maxRating": MAX_RATING}
         try:
             id = request.GET["id"]
-            recipeObj: Recipe = None
-            if id.isdigit():
-                recipeObj = Recipe.objects.get(uri=id)
-            else:
-                recipeObj = Recipe.objects.get(uri=id)
+            recipeObj = Recipe.objects.get(uri=id)
 
             if recipeObj.isNotFullRecipe():
                 recipeResult = fetchSimiliarRecipe(recipeObj)
                 if "message" not in recipeResult:
                     recipeObj = makeFullRecipe(
-                        recipeResult["id"], recipeObj, recipeResult
+                        id, recipeObj, recipeResult
                     )
                 else:
                     return incorrectRequest(
@@ -381,6 +377,15 @@ def setRating(request: HttpRequest):
     """
     content: dict[str, int | str] = json.loads(request.body)
     if request.method == "PUT" and "id" in content and "rating" in content:
+        uri = str(content["id"])
+        fullRecipe: dict[str] = {}
+        recipe: Recipe = None
+        if uri.isdigit():
+            recipe = Recipe.objects.get(uri=uri)
+        else:
+            fullRecipe = FetchFood.fetchRecipe(uri)
+            recipe = createOrGetFullRecipe(uri, fullRecipe)
+
         try:
             recipe = Recipe.objects.get(uri=content["id"])
         except Recipe.DoesNotExist:

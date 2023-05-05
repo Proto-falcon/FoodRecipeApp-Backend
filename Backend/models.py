@@ -76,7 +76,7 @@ class Recipe(models.Model):
         )["rating__avg"]
         if rating is not None:
             rating = round(rating, 1)
-        info = {"id": self.pk, "name": self.name, "image": image, "rating": rating}
+        info = {"id": self.uri, "name": self.name, "image": image, "rating": rating}
 
         if fullInfo:
             info.update(
