@@ -216,7 +216,7 @@ def setRecentRecipe(request: HttpRequest):
         fullRecipe: dict[str] = {}
         recipe: Recipe = None
         if uri.isdigit():
-            recipe = Recipe.objects.get(pk=uri)
+            recipe = Recipe.objects.get(uri=uri)
         else:
             fullRecipe = FetchFood.fetchRecipe(uri)
             recipe = createOrGetFullRecipe(uri, fullRecipe)
@@ -285,7 +285,7 @@ def getRecipe(request: HttpRequest):
             id = request.GET["id"]
             recipeObj: Recipe = None
             if id.isdigit():
-                recipeObj = Recipe.objects.get(pk=id)
+                recipeObj = Recipe.objects.get(uri=id)
             else:
                 recipeObj = Recipe.objects.get(uri=id)
 
@@ -355,7 +355,7 @@ def recommendRecipes(request: HttpRequest):
                 for i in range(MIN_RATING, MAX_RATING + 1):
                     filteredOwnItems = ownItemRatings.filter(rating=i)
                     if filteredOwnItems.exists():
-                        RecipeId = filteredOwnItems[0].recipe.pk
+                        RecipeId = filteredOwnItems[0].recipe.uri
                         break
                 if RecipeId is None:
                     raise ValueError
@@ -365,8 +365,8 @@ def recommendRecipes(request: HttpRequest):
                 if len(recommendList) >= RECOMMEND_LIMIT:
                     break
                 try:
-                    item = Recipe.objects.get(pk=int(trainingSet.to_raw_iid(id)))
-                    if item.pk not in ownItemRatings.values_list("pk",flat=True):
+                    item = Recipe.objects.get(uri=int(trainingSet.to_raw_iid(id)))
+                    if item.uri not in ownItemRatings.values_list("uri",flat=True):
                         recommendList.append(item.to_dict())
                 except (ValueError, Recipe.DoesNotExist):
                     pass
@@ -382,7 +382,7 @@ def setRating(request: HttpRequest):
     content: dict[str, int | str] = json.loads(request.body)
     if request.method == "PUT" and "id" in content and "rating" in content:
         try:
-            recipe = Recipe.objects.get(pk=content["id"])
+            recipe = Recipe.objects.get(uri=content["id"])
         except Recipe.DoesNotExist:
             return incorrectRequest("ID doesn't match with a recipe", NOT_FOUND)
 
