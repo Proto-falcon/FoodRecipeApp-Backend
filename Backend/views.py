@@ -227,7 +227,7 @@ def setRecentRecipe(request: HttpRequest):
             # Gets recent recipes in most recent order from first to last
             recentRecipes = RecentRecipe.objects.filter(user=user).order_by("-date")
             if len(recentRecipes) > RECENT_LIMIT:
-                recentRecipes[-1].delete()  # Deletes the least recent recipe
+                recentRecipes[len(recentRecipes) - 1].delete()  # Deletes the least recent recipe
 
             recentRecipe = RecentRecipe.objects.get_or_create(recipe=recipe, user=user)[
                 0
